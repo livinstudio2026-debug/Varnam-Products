@@ -35,7 +35,7 @@ app.set('trust proxy', 1);
 
 app.use(helmet());
 
-const allowedOrigins = [process.env.CLIENT_URL, 'http://localhost:3000'].filter(Boolean);
+const allowedOrigins = [process.env.CLIENT_URL, 'http://localhost:3000', 'https://varnam-products-frontend.vercel.app'].filter(Boolean);
 app.use(
   cors({
     origin: function (origin, callback) {
