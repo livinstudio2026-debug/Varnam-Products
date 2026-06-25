@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useGSAP } from '@gsap/react'
 import { gsap } from 'gsap'
@@ -6,6 +6,11 @@ import { gsap } from 'gsap'
 export default function PageTransition({ children }) {
   const el = useRef(null)
   const { key } = useLocation()
+
+  // Scroll to top on every page navigation
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+  }, [key])
 
   useGSAP(() => {
     gsap.fromTo(
