@@ -358,14 +358,17 @@ export default function Checkout() {
     postalCode: '',
   })
 
-  const formRef   = useRef(null)
-  const headerRef = useRef(null)
+  const formRef     = useRef(null)
+  const headerRef   = useRef(null)
+  // Prevents the empty-cart redirect from firing right after a successful
+  // order when clearCart() is called just before navigate('/orders/:id').
+  const orderPlaced = useRef(false)
 
   useEffect(() => { fetchSettings() }, [fetchSettings])
 
-  // Redirect if cart is empty
+  // Redirect to cart if cart is empty (but not after a successful order)
   useEffect(() => {
-    if (items.length === 0) navigate('/cart', { replace: true })
+    if (items.length === 0 && !orderPlaced.current) navigate('/cart', { replace: true })
   }, [items.length, navigate])
 
   // Auto-switch away from COD when total exceeds codLimit.
@@ -421,6 +424,7 @@ export default function Checkout() {
 
       const { data } = await orderAPI.create(payload)
       if (data.success) {
+        orderPlaced.current = true
         clearCart()
         toast.success('Order placed successfully!')
         navigate(`/orders/${data.data._id}`)
@@ -561,6 +565,7 @@ export default function Checkout() {
           setOverlayPhase('success')
           await new Promise(r => setTimeout(r, 900))
 
+          orderPlaced.current = true
           clearCart()
           toast.success('Payment confirmed! Order placed successfully 🎉')
           navigate(`/orders/${orderId}`)
