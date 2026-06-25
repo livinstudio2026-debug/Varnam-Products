@@ -402,10 +402,10 @@ export default function Register() {
   return (
     <div ref={wrapRef} style={{ minHeight: '100vh', display: 'flex', background: '#FAFAF7' }}>
 
-      {/* Left panel */}
+      {/* Left panel — FIX: removed display:'flex' from inline style so Tailwind's 'hidden' works on mobile */}
       <div ref={panelRef}
         className="hidden lg:flex lg:w-[38%] xl:w-[40%]"
-        style={{ position: 'relative', overflow: 'hidden', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 48 }}>
+        style={{ position: 'relative', overflow: 'hidden', flexShrink: 0, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 48 }}>
         <PanelBg />
         <div style={{ position: 'relative', zIndex: 10, maxWidth: 320, textAlign: 'center' }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 64, height: 64, borderRadius: 20, background: 'rgba(253,246,236,0.12)', border: '1px solid rgba(253,246,236,0.18)', marginBottom: 28, color: 'rgba(253,246,236,0.9)' }}>
