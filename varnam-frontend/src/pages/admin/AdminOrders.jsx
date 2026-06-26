@@ -527,7 +527,8 @@ export default function AdminOrders() {
   const [tab, setTab]               = useState('all')
   const [page, setPage]             = useState(1)
   const [search, setSearch]         = useState('')
-  const [viewOrder, setViewOrder]   = useState(null)
+  const [viewOrder, setViewOrder]         = useState(null)
+  const [viewOrderLoading, setViewOrderLoading] = useState(false)
 
   // Cancel requests sub-tab
   const [cancelRequests, setCancelRequests]   = useState([])
@@ -601,6 +602,20 @@ export default function AdminOrders() {
     if (tab === 'cancel-requests') fetchCancelRequests(crFilter)
   }
 
+  /* ── View order (fetches full order to ensure shippingAddress etc. are present) ── */
+  const handleViewOrder = async (order) => {
+    // If it's already a full order (has shippingAddress), open directly
+    if (order.shippingAddress) { setViewOrder(order); return }
+    setViewOrderLoading(true)
+    try {
+      const { data } = await orderAPI.getById(order._id)
+      if (data.success) setViewOrder(data.data)
+      else toast.error('Could not load order details')
+    } catch {
+      toast.error('Failed to load order details')
+    } finally { setViewOrderLoading(false) }
+  }
+
   /* ── Client-side search filter ─────────────────────────────────────────── */
   const visible = search
     ? orders.filter(o => {
@@ -655,7 +670,7 @@ export default function AdminOrders() {
           loading={crLoading}
           filter={crFilter}
           onFilterChange={setCrFilter}
-          onViewOrder={(order) => setViewOrder(order)}
+          onViewOrder={handleViewOrder}
           onRequestHandled={() => fetchCancelRequests(crFilter)}
         />
       ) : (
@@ -699,7 +714,7 @@ export default function AdminOrders() {
                       </p>
                     </td></tr>
                   )
-                  : visible.map(o => <OrderRow key={o._id} order={o} onView={setViewOrder} />)
+                  : visible.map(o => <OrderRow key={o._id} order={o} onView={handleViewOrder} />)
                 }
               </tbody>
             </table>
@@ -719,6 +734,17 @@ export default function AdminOrders() {
           onClose={() => setViewOrder(null)}
           onOrderUpdated={handleOrderUpdated}
         />
+      )}
+
+      {/* Loading overlay while fetching full order from cancel-requests */}
+      {viewOrderLoading && createPortal(
+        <div style={{ position: 'fixed', inset: 0, zIndex: 99, background: 'rgba(15,12,8,0.45)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: '24px 32px', display: 'flex', alignItems: 'center', gap: 12, boxShadow: '0 8px 32px rgba(0,0,0,0.14)' }}>
+            <span style={{ animation: 'spin 0.8s linear infinite', display: 'flex', color: '#2D6A4F' }}><IcoLoader /></span>
+            <span style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: '#3D3830', fontWeight: 600 }}>Loading order…</span>
+          </div>
+        </div>,
+        document.body
       )}
 
       <style>{`
