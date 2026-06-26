@@ -8,9 +8,9 @@ import ProductCard from '../components/ui/ProductCard'
 
 gsap.registerPlugin(ScrollTrigger)
 
-/* ─────────────────────────────────────────
-   ICONS — all SVG, no emojis
-───────────────────────────────────────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+   ICONS â€” all SVG, no emojis
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 const ChevronRight = ({ size = 16 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
     stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -93,12 +93,12 @@ const IconPackage = () => (
   </svg>
 )
 
-/* ─────────────────────────────────────────
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    1. HERO BANNER
-───────────────────────────────────────── */
-/* ─────────────────────────────────────────
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    1. HERO BANNER
-───────────────────────────────────────── */
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function FloatingBubbles() {
   const canvasRef = useRef(null);
 
@@ -178,6 +178,7 @@ function HeroBanner({ banners, loading }) {
   const slidesRef = useRef([])
   const textsRef  = useRef([])
   const dotsRef   = useRef([])
+  const touchStartX = useRef(null)
 
   const go = useCallback((next) => {
     if (locked || safeList.length < 2) return
@@ -244,8 +245,25 @@ function HeroBanner({ banners, loading }) {
     </div>
   )
 
+  const handleTouchStart = (e) => {
+    touchStartX.current = e.touches[0].clientX
+  }
+  const handleTouchEnd = (e) => {
+    if (touchStartX.current === null) return
+    const diff = touchStartX.current - e.changedTouches[0].clientX
+    if (Math.abs(diff) > 40) {
+      go(diff > 0 ? idx + 1 : idx - 1)
+    }
+    touchStartX.current = null
+  }
+
   return (
-    <div style={heroStyle} className="group select-none">
+    <div
+      style={heroStyle}
+      className="group select-none"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
       <FloatingBubbles />
       {safeList.map((b, i) => (
         <div key={b._id} ref={el => slidesRef.current[i] = el}
@@ -290,8 +308,8 @@ function HeroBanner({ banners, loading }) {
             { label: 'next', pos: { right: 16 }, icon: <ChevronRight size={17} />, fn: () => go(idx + 1) },
           ].map(({ label, pos, icon, fn }) => (
             <button key={label} onClick={fn} aria-label={`${label} slide`}
-              className="opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-              style={{ position: 'absolute', top: '50%', transform: 'translateY(-50%)', zIndex: 30, ...pos, width: 42, height: 42, borderRadius: '50%', background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)', backdropFilter: 'blur(8px)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              className="hidden md:flex opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+              style={{ position: 'absolute', top: '50%', transform: 'translateY(-50%)', zIndex: 30, ...pos, width: 42, height: 42, borderRadius: '50%', background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)', backdropFilter: 'blur(8px)', color: '#fff', cursor: 'pointer', alignItems: 'center', justifyContent: 'center' }}>
               {icon}
             </button>
           ))}
@@ -315,9 +333,9 @@ function HeroBanner({ banners, loading }) {
   )
 }
 
-/* ─────────────────────────────────────────
-   2. TRUST BAR — SVG icons
-───────────────────────────────────────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+   2. TRUST BAR â€” SVG icons
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 const TRUST = [
   {
     Icon: IconLeaf,
@@ -336,8 +354,8 @@ const TRUST = [
   {
     Icon: IconTruck,
     title: 'Free Shipping',
-    sub: 'On orders above ₹499',
-    stat: '₹499+',
+    sub: 'On orders above â‚¹499',
+    stat: 'â‚¹499+',
     glow: 'rgba(200,137,58,0.15)',
   },
   {
@@ -380,7 +398,7 @@ function TrustBar() {
         pointerEvents: 'none',
       }} />
 
-      {/* particle-like dots — static SVG, no JS needed here */}
+      {/* particle-like dots â€” static SVG, no JS needed here */}
       <svg aria-hidden="true" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', opacity: 0.06 }}
         viewBox="0 0 1200 100" preserveAspectRatio="xMidYMid slice">
         {[40,120,220,340,460,560,660,760,860,960,1060,1140].map((x, i) => (
@@ -460,9 +478,9 @@ function TrustBar() {
   )
 }
 
-/* ─────────────────────────────────────────
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    SECTION HEADER
-───────────────────────────────────────── */
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function SectionHeader({ eyebrow, title, sub, to, toLabel = 'View all' }) {
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 28, flexWrap: 'wrap' }}>
@@ -487,11 +505,11 @@ function SectionHeader({ eyebrow, title, sub, to, toLabel = 'View all' }) {
   )
 }
 
-/* ─────────────────────────────────────────
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    PRODUCT SLIDER
    FIX: wrapper uses overflow:hidden to
    prevent arrows from causing x-scroll
-───────────────────────────────────────── */
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function ProductSlider({ products = [], loading, skeletonCount = 5 }) {
   const trackRef = useRef(null)
   const wrapRef  = useRef(null)
@@ -565,11 +583,11 @@ function ProductSlider({ products = [], loading, skeletonCount = 5 }) {
   if (!products.length) return null
 
   return (
-    /* No extra padding on this wrapper — cards use full container width.
+    /* No extra padding on this wrapper â€” cards use full container width.
        overflow:hidden still clips GSAP scroll animation cleanly. */
     <div ref={wrapRef} style={{ position: 'relative' }}>
 
-      {/* Prev arrow — shown only on wider screens where it fits */}
+      {/* Prev arrow â€” shown only on wider screens where it fits */}
       {canPrev && (
         <button
           onClick={() => scrollBy('prev')}
@@ -607,7 +625,7 @@ function ProductSlider({ products = [], loading, skeletonCount = 5 }) {
         </button>
       )}
 
-      {/* Track — full width, arrows don't steal space */}
+      {/* Track â€” full width, arrows don't steal space */}
       <div
         ref={trackRef}
         className="slider-track"
@@ -626,9 +644,9 @@ function ProductSlider({ products = [], loading, skeletonCount = 5 }) {
     </div>
   )
 }
-/* ─────────────────────────────────────────
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    3. FEATURED PRODUCTS
-───────────────────────────────────────── */
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function FeaturedProducts({ products, loading }) {
   const ref = useRef(null)
   useGSAP(() => {
@@ -644,16 +662,16 @@ function FeaturedProducts({ products, loading }) {
   return (
     <section ref={ref} className="home-section" style={{ background: '#FAFAF7' }}>
       <div className="container-main">
-        <SectionHeader eyebrow="Handpicked for you" title="Featured Products" sub="Our finest selection — curated for quality and purity" to="/shop" toLabel="All products" />
+        <SectionHeader eyebrow="Handpicked for you" title="Featured Products" sub="Our finest selection â€” curated for quality and purity" to="/shop" toLabel="All products" />
         <ProductSlider products={list} loading={loading} />
       </div>
     </section>
   )
 }
 
-/* ─────────────────────────────────────────
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    4. CATEGORY GRID
-───────────────────────────────────────── */
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function CategoryCard({ cat, tall = false }) {
   const imgRef     = useRef(null)
   const overlayRef = useRef(null)
@@ -729,9 +747,9 @@ function CategoryGrid({ categories, loading }) {
   )
 }
 
-/* ─────────────────────────────────────────
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    5. BEST SELLERS
-───────────────────────────────────────── */
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function BestSellers({ products, loading }) {
   const ref = useRef(null)
   useGSAP(() => {
@@ -754,20 +772,20 @@ function BestSellers({ products, loading }) {
   )
 }
 
-/* ─────────────────────────────────────────
-   6. WHY VARNAM — SVG icons, no emojis
-───────────────────────────────────────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+   6. WHY VARNAM â€” SVG icons, no emojis
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 const WHY = [
   {
     Icon: IconSprout,
     title: 'Farm Direct',
-    body: 'We work directly with certified organic farmers across Tamil Nadu. No middlemen — fresh from field to your door.',
+    body: 'We work directly with certified organic farmers across Tamil Nadu. No middlemen â€” fresh from field to your door.',
     stat: '12+ farms',
   },
   {
     Icon: IconFlask,
     title: 'Zero Chemicals',
-    body: 'Every product is tested. No parabens, no sulphates, no artificial fragrances — ever.',
+    body: 'Every product is tested. No parabens, no sulphates, no artificial fragrances â€” ever.',
     stat: '0 additives',
   },
   {
@@ -784,12 +802,12 @@ const WHY = [
   },
 ]
 
-/* ─────────────────────────────────────────
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    ANIMATED PARTICLE CANVAS
    Pure canvas, no extra packages.
    Particles are tiny leaf/dot shapes that
    drift upward with gentle horizontal sway.
-───────────────────────────────────────── */
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function WhyParticles() {
   const canvasRef = useRef(null)
 
@@ -807,7 +825,7 @@ function WhyParticles() {
     const ro = new ResizeObserver(resize)
     ro.observe(canvas)
 
-    // Particle pool — mix of dots and tiny leaf shapes
+    // Particle pool â€” mix of dots and tiny leaf shapes
     const COUNT = 55
     const particles = Array.from({ length: COUNT }, () => ({
       x:       Math.random() * canvas.width,
@@ -882,9 +900,9 @@ function WhyParticles() {
   )
 }
 
-/* ─────────────────────────────────────────
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    6. WHY VARNAM
-───────────────────────────────────────── */
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function WhyVarnam() {
   const sectionRef = useRef(null)
   const headRef    = useRef(null)
@@ -910,14 +928,14 @@ function WhyVarnam() {
       className="why-section"
       style={{ position: 'relative', overflow: 'hidden', background: 'none' }}
     >
-      {/* ── Multi-layer background ── */}
+      {/* â”€â”€ Multi-layer background â”€â”€ */}
       {/* Layer 1: deep forest gradient */}
       <div style={{
         position: 'absolute', inset: 0, zIndex: 0,
         background: 'linear-gradient(160deg, #0D2B1E 0%, #1B4332 40%, #2D6A4F 75%, #1A3D2B 100%)',
       }} />
 
-      {/* Layer 2: large radial glow — amber top-right */}
+      {/* Layer 2: large radial glow â€” amber top-right */}
       <div style={{
         position: 'absolute', zIndex: 0,
         top: '-20%', right: '-10%',
@@ -926,7 +944,7 @@ function WhyVarnam() {
         pointerEvents: 'none',
       }} />
 
-      {/* Layer 3: large radial glow — teal bottom-left */}
+      {/* Layer 3: large radial glow â€” teal bottom-left */}
       <div style={{
         position: 'absolute', zIndex: 0,
         bottom: '-30%', left: '-15%',
@@ -967,7 +985,7 @@ function WhyVarnam() {
         pointerEvents: 'none',
       }} />
 
-      {/* ── Content ── */}
+      {/* â”€â”€ Content â”€â”€ */}
       <div className="container-main" style={{ position: 'relative', zIndex: 10 }}>
 
         {/* Header */}
@@ -1012,7 +1030,7 @@ function WhyVarnam() {
             fontSize: 14, lineHeight: 1.7,
             maxWidth: 440, margin: '0 auto',
           }}>
-            Every bottle, every bar, every supplement — made with integrity you can taste, see, and feel.
+            Every bottle, every bar, every supplement â€” made with integrity you can taste, see, and feel.
           </p>
         </div>
 
@@ -1122,9 +1140,9 @@ function WhyVarnam() {
   )
 }
 
-/* ─────────────────────────────────────────
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    7. STATS STRIP
-───────────────────────────────────────── */
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function StatsStrip() {
   const ref = useRef(null)
   useGSAP(() => {
@@ -1142,7 +1160,7 @@ function StatsStrip() {
             { n: '500+', l: 'Happy Customers' },
             { n: '100%', l: 'Organic Certified' },
             { n: '0',    l: 'Harmful Chemicals' },
-            { n: '2–5',  l: 'Days Delivery' },
+            { n: '2â€“5',  l: 'Days Delivery' },
           ].map(({ n, l }, i) => (
             <div key={i} className="stat-item"
               style={{ padding: '30px 16px', borderRight: i < 3 ? '1px solid rgba(45,106,79,0.08)' : 'none' }}>
@@ -1156,14 +1174,14 @@ function StatsStrip() {
   )
 }
 
-/* ─────────────────────────────────────────
-   PAGE — reads from homeStore, fetches once
-───────────────────────────────────────── */
+/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+   PAGE â€” reads from homeStore, fetches once
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 export default function Home() {
   const { banners, featured, bestSellers, categories, fetched, loading, fetch } = useHomeStore()
 
   useEffect(() => {
-    // fetch() is a no-op if already fetched — safe to call on every mount
+    // fetch() is a no-op if already fetched â€” safe to call on every mount
     fetch()
   }, [fetch])
 
