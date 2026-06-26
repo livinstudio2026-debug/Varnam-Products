@@ -17,6 +17,7 @@ import {
   getOrdersByStatus,
   submitCancelRequest,
   getCancelRequestStatus,
+  resolveCancelRequest,
 } from '../controllers/orderController.js';
 
 // --- Customer / Public Endpoints ---
@@ -30,6 +31,10 @@ router.get('/track/:orderNumber', trackOrderPublicly);
 // Must be above /:id to prevent Express matching 'cancel-request' as the :id param.
 router.post('/:id/cancel-request', protect, submitCancelRequest);
 router.get('/:id/cancel-request', protect, getCancelRequestStatus);
+
+// --- Cancellation Request — Admin Endpoint ---
+// PUT: approve or reject a pending cancellation request
+router.put('/:id/cancel-request', protect, admin, resolveCancelRequest);
 
 // --- Admin System Management Endpoints ---
 // IMPORTANT: All literal-path GET routes must be registered BEFORE /:id.
