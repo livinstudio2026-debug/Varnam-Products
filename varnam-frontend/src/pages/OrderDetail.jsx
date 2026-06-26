@@ -196,7 +196,6 @@ function CancelSection({ order, onCancelSubmitted }) {
   const pollRef = useRef(null)
 
   
-  
 
   const isCancellable = CANCELLABLE.includes(order.orderStatus)
 
@@ -525,12 +524,12 @@ export default function OrderDetail() {
       <div style={{ background: '#fff', borderBottom: '1px solid #F0EBE1', padding: '18px 0', boxShadow: '0 1px 0 rgba(45,106,79,0.06)' }}>
         <div className="container-main">
           {/* breadcrumb */}
-          <nav style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#A89F8C', marginBottom: 6, fontFamily: 'var(--font-body)' }}>
+          <nav style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#A89F8C', marginBottom: 6, fontFamily: 'var(--font-body)', flexWrap: 'wrap' }}>
             <Link to="/"       style={{ color: '#A89F8C', textDecoration: 'none' }}>Home</Link>
             <span>/</span>
             <Link to="/orders" style={{ color: '#A89F8C', textDecoration: 'none' }}>My Orders</Link>
             <span>/</span>
-            <span style={{ color: '#26221C' }}>{order?.orderNumber || 'Order Detail'}</span>
+            <span style={{ color: '#26221C', wordBreak: 'break-all' }}>{order?.orderNumber || 'Order Detail'}</span>
           </nav>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
@@ -539,23 +538,23 @@ export default function OrderDetail() {
               style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 10, border: '1.5px solid #E8E0D0', background: '#fff', cursor: 'pointer', color: '#5C5548', flexShrink: 0 }}>
               <IconArrowLeft />
             </button>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(45,106,79,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2D6A4F' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(45,106,79,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2D6A4F', flexShrink: 0 }}>
                 <IconBox />
               </div>
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: 'clamp(1.1rem,2.5vw,1.5rem)', color: '#26221C', margin: 0, lineHeight: 1.2 }}>
                   Order Detail
                 </h1>
                 {order && (
-                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#A89F8C', margin: '2px 0 0' }}>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#A89F8C', margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {order.orderNumber} · {fmtDate(order.createdAt)}
                   </p>
                 )}
               </div>
             </div>
             {order && (
-              <div style={{ marginLeft: 'auto' }}>
+              <div style={{ flexShrink: 0 }}>
                 <StatusBadge status={order.orderStatus} large />
               </div>
             )}
@@ -572,7 +571,7 @@ export default function OrderDetail() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16 }} className="order-detail-grid">
 
               {/* ── LEFT COLUMN ── */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
 
                 {/* STATUS TIMELINE */}
                 <div className="anim-row">
@@ -627,7 +626,7 @@ export default function OrderDetail() {
               </div>
 
               {/* ── RIGHT COLUMN ── */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
 
                 {/* ORDER SUMMARY */}
                 <div className="anim-row">
@@ -638,14 +637,14 @@ export default function OrderDetail() {
                         { label: 'Shipping',       value: order.shippingFee === 0 ? 'Free' : fmt(order.shippingFee) },
                         ...(order.discount > 0 ? [{ label: 'Discount', value: `-${fmt(order.discount)}`, red: true }] : []),
                       ].map(({ label, value, red }) => (
-                        <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#7A7265' }}>{label}</span>
+                        <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#7A7265', flexShrink: 0 }}>{label}</span>
                           <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: red ? '#DC2626' : '#26221C', fontWeight: 500 }}>{value}</span>
                         </div>
                       ))}
                       <div style={{ height: 1, background: '#F0EBE1', margin: '4px 0' }} />
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontFamily: 'var(--font-heading)', fontSize: 15, color: '#26221C' }}>Total</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontFamily: 'var(--font-heading)', fontSize: 15, color: '#26221C', flexShrink: 0 }}>Total</span>
                         <span style={{ fontFamily: 'var(--font-heading)', fontSize: 18, color: '#26221C', fontWeight: 700 }}>{fmt(order.totalPrice)}</span>
                       </div>
                     </div>
@@ -656,14 +655,14 @@ export default function OrderDetail() {
                 <div className="anim-row">
                   <SectionCard title="Payment" icon={<IconCreditCard />}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#7A7265' }}>Method</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#7A7265', flexShrink: 0 }}>Method</span>
                         <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#26221C', fontWeight: 500 }}>
                           {order.paymentMethod === 'COD' ? '💵 Cash on Delivery' : '💳 Online Payment'}
                         </span>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#7A7265' }}>Status</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#7A7265', flexShrink: 0 }}>Status</span>
                         <span style={{
                           fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 700,
                           color: PAYMENT_CONFIG[order.paymentStatus]?.color || '#6B7280',
@@ -699,8 +698,8 @@ export default function OrderDetail() {
                         </p>
                       )}
                       {order.customerEmail && (
-                        <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#7A7265', margin: 0, display: 'flex', alignItems: 'center', gap: 5 }}>
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                        <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#7A7265', margin: 0, display: 'flex', alignItems: 'center', gap: 5, wordBreak: 'break-all' }}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
                           {order.customerEmail}
                         </p>
                       )}
@@ -720,18 +719,18 @@ export default function OrderDetail() {
                 <div className="anim-row">
                   <SectionCard title="Order Info" icon={<IconClock />}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#7A7265' }}>Order number</span>
-                        <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#26221C', fontWeight: 600 }}>{order.orderNumber}</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                        <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#7A7265', flexShrink: 0 }}>Order number</span>
+                        <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#26221C', fontWeight: 600, textAlign: 'right', wordBreak: 'break-all' }}>{order.orderNumber}</span>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#7A7265' }}>Placed on</span>
-                        <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#26221C' }}>{fmtDateTime(order.createdAt)}</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                        <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#7A7265', flexShrink: 0 }}>Placed on</span>
+                        <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#26221C', textAlign: 'right' }}>{fmtDateTime(order.createdAt)}</span>
                       </div>
                       {order.updatedAt && order.updatedAt !== order.createdAt && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#7A7265' }}>Last updated</span>
-                          <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#26221C' }}>{fmtDateTime(order.updatedAt)}</span>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                          <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#7A7265', flexShrink: 0 }}>Last updated</span>
+                          <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#26221C', textAlign: 'right' }}>{fmtDateTime(order.updatedAt)}</span>
                         </div>
                       )}
                     </div>
@@ -751,14 +750,14 @@ export default function OrderDetail() {
                     onMouseEnter={e => { e.currentTarget.style.background = 'rgba(45,106,79,0.08)'; e.currentTarget.style.borderColor = 'rgba(45,106,79,0.35)' }}
                     onMouseLeave={e => { e.currentTarget.style.background = 'rgba(45,106,79,0.04)'; e.currentTarget.style.borderColor = 'rgba(45,106,79,0.2)' }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{ color: '#2D6A4F' }}><IconTruck /></div>
-                      <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                      <div style={{ color: '#2D6A4F', flexShrink: 0 }}><IconTruck /></div>
+                      <div style={{ minWidth: 0 }}>
                         <p style={{ fontFamily: 'var(--font-body)', fontWeight: 600, fontSize: 13, color: '#2D6A4F', margin: 0 }}>Track this order publicly</p>
                         <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#A89F8C', margin: '2px 0 0' }}>Use order number to track</p>
                       </div>
                     </div>
-                    <div style={{ color: '#2D6A4F' }}><IconChevronRight /></div>
+                    <div style={{ color: '#2D6A4F', flexShrink: 0 }}><IconChevronRight /></div>
                   </Link>
                 </div>
 
