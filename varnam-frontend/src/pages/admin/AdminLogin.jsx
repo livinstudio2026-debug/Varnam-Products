@@ -1,7 +1,7 @@
 // src/pages/admin/AdminLogin.jsx
 
 import { useState, useRef } from 'react'
-import { useNavigate, Navigate } from 'react-router-dom'
+import { useNavigate, Navigate, Link } from 'react-router-dom'
 import { gsap } from 'gsap'
 import { useGSAP } from '@gsap/react'
 import toast from 'react-hot-toast'
@@ -20,6 +20,25 @@ const EyeIcon = ({ open }) => open ? (
     <circle cx="12" cy="12" r="3"/>
   </svg>
 )
+
+function VarnamLogo({ className = '', style = {} }) {
+  return (
+    <svg
+      viewBox="0 0 140 40"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      style={style}
+      aria-label="Varnam Naturals"
+    >
+      <path d="M8 32 C8 20 16 10 28 8 C26 20 18 28 8 32Z" fill="#2D6A4F" />
+      <path d="M28 8 C28 20 22 30 12 34 C16 26 22 18 28 8Z" fill="#52B788" opacity="0.7" />
+      <line x1="14" y1="34" x2="26" y2="10" stroke="#2D6A4F" strokeWidth="0.8" opacity="0.4" />
+      <text x="36" y="25" fontFamily="'Playfair Display', Georgia, serif" fontSize="19" fontWeight="700" fill="#2D6A4F" letterSpacing="-0.4">varnam</text>
+      <text x="37" y="35" fontFamily="'DM Sans', system-ui, sans-serif" fontSize="7" fontWeight="400" fill="#C8893A" letterSpacing="3.2">NATURALS</text>
+    </svg>
+  )
+}
 
 export default function AdminLogin() {
   const navigate  = useNavigate()
@@ -79,12 +98,9 @@ export default function AdminLogin() {
       <div ref={cardRef} style={{ width: '100%', maxWidth: 420, position: 'relative', zIndex: 10 }}>
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 56, height: 56, borderRadius: 16, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)', marginBottom: 16 }}>
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="36" height="36">
-              <rect width="64" height="64" rx="16" fill="#2D6A4F"/>
-              <text x="32" y="46" fontSize="36" textAnchor="middle" fill="#FDF6EC" fontFamily="Georgia,serif" fontWeight="700">V</text>
-            </svg>
-          </div>
+          <Link to="/" style={{ display: 'inline-block', marginBottom: 16 }}>
+            <VarnamLogo style={{ height: 40, width: 'auto', filter: 'brightness(0) invert(1)' }} />
+          </Link>
           <h1 style={{ fontFamily: 'var(--font-heading)', color: '#FDF6EC', fontSize: 22, margin: '0 0 4px' }}>
             Varnam Admin
           </h1>
