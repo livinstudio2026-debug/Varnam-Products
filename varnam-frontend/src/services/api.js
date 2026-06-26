@@ -94,8 +94,8 @@ export const adminAPI = {
   getCustomerById: (id) => api.get(`/admin/customers/${id}`),
   toggleBlockCustomer: (id) => api.patch(`/admin/customers/block/${id}`),
   getCancelRequests: (status = 'Pending') => api.get('/admin/cancel-requests', { params: { status } }),
-  approveCancelRequest: (id) => api.put(`/admin/cancel-requests/${id}/approve`),
-  rejectCancelRequest: (id, note = '') => api.put(`/admin/cancel-requests/${id}/reject`, { note }),
+  approveCancelRequest: (id) => api.put(`/orders/${id}/cancel-request`, { resolution: 'Approved' }),
+  rejectCancelRequest: (id, note = '') => api.put(`/orders/${id}/cancel-request`, { resolution: 'Rejected', adminNote: note }),
 }
 
 export const reportAPI = {
