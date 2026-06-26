@@ -51,6 +51,25 @@ const IconLeaf = () => (
     <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>
   </svg>
 )
+
+function VarnamLogo({ className = '', style = {} }) {
+  return (
+    <svg
+      viewBox="0 0 140 40"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      style={style}
+      aria-label="Varnam Naturals"
+    >
+      <path d="M8 32 C8 20 16 10 28 8 C26 20 18 28 8 32Z" fill="#2D6A4F" />
+      <path d="M28 8 C28 20 22 30 12 34 C16 26 22 18 28 8Z" fill="#52B788" opacity="0.7" />
+      <line x1="14" y1="34" x2="26" y2="10" stroke="#2D6A4F" strokeWidth="0.8" opacity="0.4" />
+      <text x="36" y="25" fontFamily="'Playfair Display', Georgia, serif" fontSize="19" fontWeight="700" fill="#2D6A4F" letterSpacing="-0.4">varnam</text>
+      <text x="37" y="35" fontFamily="'DM Sans', system-ui, sans-serif" fontSize="7" fontWeight="400" fill="#C8893A" letterSpacing="3.2">NATURALS</text>
+    </svg>
+  )
+}
 const IconArrow = () => (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
     <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
@@ -408,9 +427,9 @@ export default function Register() {
         style={{ position: 'relative', overflow: 'hidden', flexShrink: 0, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 48 }}>
         <PanelBg />
         <div style={{ position: 'relative', zIndex: 10, maxWidth: 320, textAlign: 'center' }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 64, height: 64, borderRadius: 20, background: 'rgba(253,246,236,0.12)', border: '1px solid rgba(253,246,236,0.18)', marginBottom: 28, color: 'rgba(253,246,236,0.9)' }}>
-            <IconLeaf />
-          </div>
+          <Link to="/" style={{ display: 'inline-block', marginBottom: 28 }}>
+            <VarnamLogo style={{ height: 44, width: 'auto', filter: 'brightness(0) invert(1)' }} />
+          </Link>
           <h2 style={{ fontFamily: 'var(--font-heading)', color: '#FDF6EC', fontSize: 26, lineHeight: 1.25, marginBottom: 16 }}>
             Join the Varnam<br/>
             <span style={{ color: '#E9B87A' }}>Natural Family</span>
@@ -439,10 +458,9 @@ export default function Register() {
 
           {/* Mobile logo */}
           <div className="lg:hidden" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 28 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 10, background: '#2D6A4F', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
-              <IconLeaf />
-            </div>
-            <span style={{ fontFamily: 'var(--font-heading)', fontSize: 18, color: '#2D6A4F' }}>Varnam Naturals</span>
+            <Link to="/">
+              <VarnamLogo style={{ height: 32, width: 'auto' }} />
+            </Link>
           </div>
 
           {/* Step dots */}
