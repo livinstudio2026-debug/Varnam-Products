@@ -44,14 +44,25 @@ export default function Footer() {
   const footerRef = useRef(null)
 
   useGSAP(() => {
-    gsap.fromTo(
-      footerRef.current?.querySelectorAll('.footer-reveal'),
-      { y: 24, opacity: 0 },
-      {
-        y: 0, opacity: 1, stagger: 0.07, duration: 0.7, ease: 'power3.out',
-        scrollTrigger: { trigger: footerRef.current, start: 'top 90%' },
-      }
-    )
+    const items = footerRef.current?.querySelectorAll('.footer-reveal')
+    if (!items?.length) return
+
+    // Set visible by default — prevents elements staying hidden if trigger never fires
+    gsap.set(items, { y: 0, opacity: 1 })
+
+    const trigger = ScrollTrigger.create({
+      trigger: footerRef.current,
+      start: 'top 95%',
+      once: true,
+      onEnter: () => {
+        gsap.fromTo(items,
+          { y: 24, opacity: 0 },
+          { y: 0, opacity: 1, stagger: 0.07, duration: 0.7, ease: 'power3.out' }
+        )
+      },
+    })
+
+    return () => trigger.kill()
   }, { scope: footerRef })
 
   return (
