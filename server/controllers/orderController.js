@@ -4,7 +4,7 @@ import Order from '../models/Order.js';
 import Product from '../models/Product.js';
 import razorpay from '../config/razorpay.js';
 import { generateOrderNumber } from '../utils/generateOrderNumber.js';
-import { sendOrderPlacedEmails, sendOrderShippedEmail, sendOrderDeliveredEmail, sendOrderCancelledEmail, sendCancelRequestAdminEmail } from '../services/mailService.js';
+import { sendOrderPlacedEmails, sendOrderShippedEmail, sendOrderDeliveredEmail, sendOrderCancelledEmail, sendCancelRequestAdminEmail, sendCancelRequestResolvedEmail } from '../services/mailService.js';
 import { getSettingsDocument } from '../controllers/settingsController.js';
 import { ORDER_STATUS } from '../constants/orderStatus.js';
 import { PAYMENT_STATUS } from '../constants/paymentStatus.js';
@@ -632,6 +632,152 @@ export const getCancelRequestStatus = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CANCELLATION REQUEST FLOW — ADMIN SIDE
+// ─────────────────────────────────────────────────────────────────────────────
+
+// @desc    Admin approves or rejects a customer cancellation request
+// @route   PUT /api/orders/:id/cancel-request
+// @access  Private (Admin only)
+//
+// Body:
+//   resolution : 'Approved' | 'Rejected'  (required)
+//   adminNote  : string                    (optional — shown to customer on rejection)
+//
+// When Approved:
+//   - Stock is restored atomically
+//   - Razorpay refund is triggered if payment was captured (skipRefund escape hatch supported)
+//   - orderStatus → Cancelled, paymentStatus → Refunded | Cancelled
+//   - cancellationRequest.status → Approved
+//   - Customer receives a resolution email
+//
+// When Rejected:
+//   - Order continues unchanged
+//   - cancellationRequest.status → Rejected
+//   - Customer receives a rejection email with optional adminNote
+export const resolveCancelRequest = async (req, res) => {
+  const { resolution, adminNote, skipRefund } = req.body;
+
+  if (!['Approved', 'Rejected'].includes(resolution)) {
+    return res.status(400).json({ success: false, message: "resolution must be 'Approved' or 'Rejected'" });
+  }
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const order = await Order.findById(req.params.id).session(session);
+    if (!order) throw new Error('Order not found');
+
+    if (!order.cancellationRequest || order.cancellationRequest.status !== 'Pending') {
+      return res.status(400).json({
+        success: false,
+        message: 'No pending cancellation request found for this order',
+      });
+    }
+
+    // ── REJECTION PATH ────────────────────────────────────────────────────────
+    if (resolution === 'Rejected') {
+      order.cancellationRequest.status = 'Rejected';
+      order.cancellationRequest.adminNote = adminNote?.trim() || null;
+      order.cancellationRequest.resolvedAt = new Date();
+
+      await order.save({ session });
+      await session.commitTransaction();
+      session.endSession();
+
+      // Notify customer of rejection (non-blocking)
+      setImmediate(() => sendCancelRequestResolvedEmail(order, 'Rejected').catch(() => {}));
+
+      return res.status(200).json({
+        success: true,
+        message: 'Cancellation request rejected. Customer has been notified.',
+        data: order,
+      });
+    }
+
+    // ── APPROVAL PATH ─────────────────────────────────────────────────────────
+    if (!isValidStatusTransition(order.orderStatus, ORDER_STATUS.CANCELLED)) {
+      throw new Error(`Cannot cancel order from current status [${order.orderStatus}]`);
+    }
+
+    // Restore stock — same logic as cancelOrder
+    if (order.paymentMethod === 'COD' || order.paymentStatus === PAYMENT_STATUS.PAID) {
+      for (const item of order.orderItems) {
+        await Product.findByIdAndUpdate(
+          item.product,
+          { $inc: { stock: item.quantity, totalSales: -item.quantity } },
+          { session }
+        );
+      }
+    }
+
+    // Razorpay refund — only when payment was captured
+    const isRefund = order.paymentStatus === PAYMENT_STATUS.PAID;
+
+    if (order.paymentMethod === 'RAZORPAY' && isRefund && order.razorpayPaymentId) {
+      if (skipRefund === true) {
+        logger.info('[resolveCancelRequest] skipRefund=true — Razorpay API call bypassed', {
+          orderNumber: order.orderNumber,
+          orderId: order._id,
+        });
+      } else {
+        try {
+          await razorpay.payments.refund(order.razorpayPaymentId, {
+            amount: Math.round(order.totalPrice * 100),
+            speed: 'normal',
+            notes: {
+              reason: 'Cancellation request approved by admin',
+              orderNumber: order.orderNumber,
+            },
+          });
+        } catch (refundError) {
+          throw new Error(`Razorpay refund failed: ${refundError.error?.description || refundError.message}`);
+        }
+      }
+    }
+
+    order.orderStatus = ORDER_STATUS.CANCELLED;
+    order.paymentStatus = isRefund ? PAYMENT_STATUS.REFUNDED : PAYMENT_STATUS.CANCELLED;
+    order.cancellationRequest.status = 'Approved';
+    order.cancellationRequest.adminNote = adminNote?.trim() || null;
+    order.cancellationRequest.resolvedAt = new Date();
+
+    await order.save({ session });
+    await session.commitTransaction();
+    session.endSession();
+
+    // Notify customer of approval (non-blocking)
+    setImmediate(() => sendCancelRequestResolvedEmail(order, 'Approved', isRefund).catch(() => {}));
+
+    return res.status(200).json({
+      success: true,
+      message: 'Cancellation request approved. Order cancelled and customer notified.',
+      data: order,
+    });
+  } catch (error) {
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
+    session.endSession();
+
+    const clientSafeMessages = ['Order not found'];
+    const isClientSafe =
+      clientSafeMessages.includes(error.message) ||
+      error.message.includes('Cannot cancel order') ||
+      error.message.includes('Razorpay refund failed');
+
+    return res.status(isClientSafe ? 400 : 500).json({
+      success: false,
+      message: isClientSafe
+        ? error.message
+        : process.env.NODE_ENV === 'development'
+        ? error.message
+        : 'Something went wrong',
     });
   }
 };
