@@ -249,6 +249,159 @@ function ConfirmingOverlay({ phase }) {
   )
 }
 
+/* ── Order success overlay ───────────────────────────────────────────────── */
+function OrderSuccessOverlay({ onDone }) {
+  const overlayRef  = useRef(null)
+  const cardRef     = useRef(null)
+  const circleRef   = useRef(null)
+  const checkRef    = useRef(null)
+  const confettiRef = useRef(null)
+  const textRef     = useRef(null)
+  const timerRef    = useRef(null)
+
+  const particles = Array.from({ length: 22 }, (_, i) => ({
+    id: i,
+    color: ['#2D6A4F','#52B788','#C8893A','#E9B87A','#95D5B2','#40916C'][i % 6],
+    size:  [6, 8, 5, 7, 6, 9][i % 6],
+    x:     (Math.sin(i * 1.7) * 160),
+    y:     -(80 + Math.abs(Math.cos(i * 1.3)) * 140),
+    rot:   i * 47,
+  }))
+
+  useGSAP(() => {
+    const tl = gsap.timeline()
+
+    tl.fromTo(overlayRef.current,
+      { opacity: 0 },
+      { opacity: 1, duration: 0.35, ease: 'power2.out' }
+    )
+    tl.fromTo(cardRef.current,
+      { scale: 0.72, opacity: 0, y: 40 },
+      { scale: 1, opacity: 1, y: 0, duration: 0.55, ease: 'back.out(1.7)' },
+      '-=0.15'
+    )
+    tl.fromTo(circleRef.current,
+      { strokeDashoffset: 220 },
+      { strokeDashoffset: 0, duration: 0.55, ease: 'power3.out' },
+      '-=0.2'
+    )
+    tl.fromTo(checkRef.current,
+      { strokeDashoffset: 60 },
+      { strokeDashoffset: 0, duration: 0.4, ease: 'power3.out' },
+      '-=0.15'
+    )
+    if (confettiRef.current) {
+      const dots = confettiRef.current.querySelectorAll('.confetti-dot')
+      tl.fromTo(dots,
+        { x: 0, y: 0, opacity: 1, scale: 0, rotate: 0 },
+        {
+          x: (i) => particles[i].x,
+          y: (i) => particles[i].y,
+          opacity: 0, scale: 1,
+          rotate: (i) => particles[i].rot,
+          duration: 0.9, stagger: 0.018, ease: 'power2.out',
+        },
+        '-=0.3'
+      )
+    }
+    tl.fromTo(textRef.current?.querySelectorAll('.success-line'),
+      { opacity: 0, y: 10 },
+      { opacity: 1, y: 0, stagger: 0.08, duration: 0.35, ease: 'power3.out' },
+      '-=0.8'
+    )
+
+    timerRef.current = setTimeout(onDone, 5000)
+  }, { scope: overlayRef })
+
+  useEffect(() => () => clearTimeout(timerRef.current), [])
+
+  return (
+    <div ref={overlayRef} style={{
+      position: 'fixed', inset: 0, zIndex: 300,
+      background: 'rgba(10,20,14,0.82)', backdropFilter: 'blur(12px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: '20px',
+    }}>
+      <div ref={cardRef} style={{
+        background: '#fff', borderRadius: 28,
+        padding: 'clamp(32px,6vw,52px) clamp(24px,6vw,52px)',
+        maxWidth: 420, width: '100%',
+        boxShadow: '0 32px 80px rgba(0,0,0,0.25)',
+        textAlign: 'center', position: 'relative', overflow: 'hidden',
+      }}>
+
+        {/* Top colour bar */}
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, background: 'linear-gradient(90deg,#2D6A4F,#52B788,#C8893A)' }} />
+
+        {/* Confetti burst origin */}
+        <div ref={confettiRef} style={{ position: 'absolute', top: '36%', left: '50%', pointerEvents: 'none', zIndex: 10 }}>
+          {particles.map((p) => (
+            <div key={p.id} className="confetti-dot" style={{
+              position: 'absolute', width: p.size, height: p.size,
+              borderRadius: p.id % 3 === 0 ? '50%' : 3,
+              background: p.color,
+              transform: 'translate(-50%,-50%)',
+            }} />
+          ))}
+        </div>
+
+        {/* Animated circle + check */}
+        <div style={{ position: 'relative', width: 90, height: 90, margin: '0 auto 24px', zIndex: 5 }}>
+          <svg width="90" height="90" viewBox="0 0 90 90" style={{ position: 'absolute', inset: 0 }}>
+            <circle cx="45" cy="45" r="35" fill="none" stroke="#F0EBE1" strokeWidth="5" />
+          </svg>
+          <svg width="90" height="90" viewBox="0 0 90 90" style={{ position: 'absolute', inset: 0, transform: 'rotate(-90deg)' }}>
+            <circle ref={circleRef} cx="45" cy="45" r="35"
+              fill="none" stroke="#2D6A4F" strokeWidth="5" strokeLinecap="round"
+              strokeDasharray="220" strokeDashoffset="220" />
+          </svg>
+          <div style={{
+            position: 'absolute', inset: 10, borderRadius: '50%',
+            background: 'rgba(45,106,79,0.08)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+              <polyline ref={checkRef}
+                points="7,19 15,27 29,11"
+                stroke="#2D6A4F" strokeWidth="3.5"
+                strokeLinecap="round" strokeLinejoin="round"
+                strokeDasharray="60" strokeDashoffset="60" />
+            </svg>
+          </div>
+        </div>
+
+        {/* Text */}
+        <div ref={textRef}>
+          <p className="success-line" style={{
+            fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 700,
+            letterSpacing: '0.18em', color: '#52B788', textTransform: 'uppercase', margin: '0 0 8px',
+          }}>Order Confirmed</p>
+          <h2 className="success-line" style={{
+            fontFamily: 'var(--font-heading)', fontSize: 'clamp(22px,5vw,28px)',
+            color: '#26221C', margin: '0 0 10px', lineHeight: 1.2,
+          }}>Thank you! 🎉</h2>
+          <p className="success-line" style={{
+            fontFamily: 'var(--font-body)', fontSize: 14, color: '#7A7265',
+            margin: '0 0 26px', lineHeight: 1.65,
+          }}>
+            Your order is on its way.<br />We'll send updates to your email.
+          </p>
+
+          {/* 3s drain bar */}
+          <div style={{ height: 3, borderRadius: 99, background: '#F0EBE1', overflow: 'hidden' }}>
+            <div style={{
+              height: '100%', borderRadius: 99,
+              background: 'linear-gradient(90deg,#2D6A4F,#52B788)',
+              animation: 'drain 5s linear forwards',
+            }} />
+          </div>
+        </div>
+      </div>
+      <style>{`@keyframes drain { from { width:100% } to { width:0% } }`}</style>
+    </div>
+  )
+}
+
 /* ── Order summary sidebar ───────────────────────────────────────────────── */
 function OrderSummary({ items, subtotal, shippingFee, grandTotal, codEnabled, codLimit }) {
   const [collapsed, setCollapsed] = useState(false)
@@ -347,6 +500,7 @@ export default function Checkout() {
   const [paymentMethod, setPaymentMethod] = useState('RAZORPAY')  // 'RAZORPAY' | 'COD'
   // overlayPhase: null | 'waiting' | 'confirming' | 'success'
   const [overlayPhase, setOverlayPhase] = useState(null)
+  const [showSuccess, setShowSuccess]   = useState(false)
 
   const [form, setForm] = useState({
     customerName:  user?.name  || '',
@@ -385,6 +539,11 @@ export default function Checkout() {
     setForm(f => ({ ...f, [field]: value }))
     if (errors[field]) setErrors(e => { const n = { ...e }; delete n[field]; return n })
   }
+
+  const handleOrderSuccess = useCallback(() => {
+    toast('Keep shopping 🌿', { icon: '🛍️', duration: 3000 })
+    navigate('/shop', { replace: true })
+  }, [navigate])
 
   const t = totals()
 
@@ -426,8 +585,7 @@ export default function Checkout() {
       if (data.success) {
         orderPlaced.current = true
         clearCart()
-        toast.success('Order placed successfully!')
-        navigate(`/orders/${data.data._id}`)
+        setShowSuccess(true)
       }
     } catch (err) {
       const msg = err?.response?.data?.message || 'Failed to place order. Please try again.'
@@ -567,8 +725,8 @@ export default function Checkout() {
 
           orderPlaced.current = true
           clearCart()
-          toast.success('Payment confirmed! Order placed successfully 🎉')
-          navigate(`/orders/${orderId}`)
+          setOverlayPhase(null)
+          setShowSuccess(true)
 
         } catch (err) {
           setOverlayPhase(null)
@@ -608,7 +766,7 @@ export default function Checkout() {
     }
   }
 
-  if (!items.length) return null
+  if (!items.length && !showSuccess) return null
 
   const codExceedsLimit = t.grandTotal > codLimit
 
@@ -617,6 +775,7 @@ export default function Checkout() {
 
       {/* Confirming payment overlay */}
       {overlayPhase && <ConfirmingOverlay phase={overlayPhase} />}
+      {showSuccess  && <OrderSuccessOverlay onDone={handleOrderSuccess} />}
 
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <div ref={headerRef} style={{ background: '#fff', borderBottom: '1px solid #F0EBE1', padding: '20px 0' }}>
