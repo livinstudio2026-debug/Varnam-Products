@@ -222,9 +222,9 @@ function CustomerModal({ customerId, onClose, onBlockToggled }) {
             {/* Stats row */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', borderBottom: '1px solid #F5F0E8' }} className="customer-modal-stats">
               {[
-                { label: 'Total Orders',  value: stats.totalOrders  ?? orders.length ?? 0 },
-                { label: 'Total Spent',   value: fmt(stats.totalSpent ?? 0) },
-                { label: 'Avg. Order',    value: fmt(stats.avgOrderValue ?? 0) },
+                { label: 'Total Orders',  value: stats.orderCount  ?? orders.length ?? 0 },
+                { label: 'Total Spent',   value: fmt(stats.totalSpend ?? 0) },
+                { label: 'Avg. Order',    value: fmt(stats.orderCount > 0 ? Math.round(stats.totalSpend / stats.orderCount) : 0) },
               ].map(({ label, value }, i) => (
                 <div key={label} style={{ padding: '14px 16px', borderRight: i < 2 ? '1px solid #F5F0E8' : 'none', textAlign: 'center' }}>
                   <p style={{ fontFamily: 'var(--font-heading)', fontSize: 18, color: '#26221C', margin: '0 0 2px' }}>{value}</p>
