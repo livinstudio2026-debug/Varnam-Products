@@ -1,0 +1,260 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── CSS Custom Properties ── */
+
+/* ── Prevent any element from causing horizontal overflow ── */
+html, body { overflow-x: hidden; }
+
+:root {
+  --color-green:        #2D6A4F;
+  --color-green-dark:   #1B4332;
+  --color-green-light:  #52B788;
+  --color-cream:        #FDF6EC;
+  --color-cream-dark:   #F5E6CC;
+  --color-amber:        #C8893A;
+  --color-amber-light:  #E9B87A;
+  --color-off-white:    #FAFAF7;
+  --font-heading:       'Playfair Display', Georgia, serif;
+  --font-body:          'DM Sans', system-ui, sans-serif;
+  --transition-base:    0.25s ease;
+  --transition-slow:    0.45s ease;
+}
+
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  background-color: var(--color-off-white);
+  color: #26221C;
+  line-height: 1.6;
+}
+
+/* ── Typography ── */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  line-height: 1.2;
+  margin: 0;
+}
+
+p { margin: 0; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #52B788; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #2D6A4F; }
+
+/* ── Slider track — hide scrollbar cross-browser ── */
+.slider-track {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+}
+.slider-track::-webkit-scrollbar { display: none; }
+
+/* ── Tailwind component layer ── */
+@layer components {
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2
+           bg-brand-green text-white font-medium
+           px-6 py-3 rounded-xl
+           transition-all duration-200
+           hover:bg-brand-green-dark hover:shadow-lg hover:shadow-brand-green/25
+           active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2
+           border border-brand-green text-brand-green font-medium
+           px-6 py-3 rounded-xl bg-transparent
+           transition-all duration-200
+           hover:bg-brand-green hover:text-white
+           active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2
+           text-brand-green font-medium px-4 py-2 rounded-xl
+           transition-all duration-200 hover:bg-brand-green/10 active:scale-95;
+  }
+
+  .card {
+    @apply bg-white rounded-2xl border border-neutral-100
+           transition-all duration-300;
+    box-shadow: 0 4px 40px rgba(45,106,79,0.10);
+  }
+  .card:hover {
+    box-shadow: 0 8px 40px rgba(45,106,79,0.18);
+  }
+
+  .input {
+    @apply w-full px-4 py-3 rounded-xl
+           border border-neutral-200 bg-white
+           placeholder:text-neutral-400
+           transition-all duration-200
+           focus:outline-none focus:border-brand-green
+           focus:ring-2 focus:ring-brand-green/15
+           disabled:bg-neutral-50 disabled:cursor-not-allowed;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .container-main {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  .section {
+    @apply py-16 md:py-24;
+  }
+}
+
+/* ── Utility layer — these MUST be here or Tailwind purges them ── */
+@layer utilities {
+  .font-heading { font-family: var(--font-heading) !important; }
+  .font-body    { font-family: var(--font-body)    !important; }
+}
+
+/* ── Keyframes ── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95) translateY(-4px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+/* ── Skeleton shimmer ── */
+.skeleton {
+  background: linear-gradient(90deg, #f0ede6 25%, #e8e3d8 50%, #f0ede6 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+}
+
+/* ── Home page responsive grid helpers ── */
+
+/* Trust bar: 4 col → 2 col → 1 col */
+.trust-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+}
+@media (max-width: 767px) {
+  .trust-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  /* top row gets a bottom divider, right col loses its right border */
+  .trust-grid .trust-item:nth-child(1),
+  .trust-grid .trust-item:nth-child(2) {
+    border-bottom: 1px solid rgba(255,255,255,0.07) !important;
+  }
+  .trust-grid .trust-item:nth-child(2),
+  .trust-grid .trust-item:nth-child(4) {
+    border-right: none !important;
+  }
+}
+@media (max-width: 479px) {
+  .trust-grid {
+    grid-template-columns: 1fr;
+  }
+  /* single column — every item gets a bottom border except the last */
+  .trust-grid .trust-item {
+    border-right: none !important;
+    border-bottom: 1px solid rgba(255,255,255,0.07) !important;
+  }
+  .trust-grid .trust-item:last-child {
+    border-bottom: none !important;
+  }
+}
+/* Category grid: tall-left + 3-col right → flat 2-col → 1-col */
+.cat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-auto-rows: auto;
+  gap: 16px;
+}
+.cat-grid .cat-tall { grid-row: span 2; }
+
+@media (max-width: 1023px) {
+  .cat-grid { grid-template-columns: repeat(3, 1fr); }
+  .cat-grid .cat-tall { grid-row: span 1; }
+}
+@media (max-width: 639px) {
+  .cat-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .cat-grid .cat-tall { grid-row: span 1; }
+}
+
+/* Why Varnam cards: 4 col → 2 col → 1 col */
+.why-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+}
+@media (max-width: 1023px) { .why-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 639px)  { .why-grid { grid-template-columns: 1fr; gap: 14px; } }
+
+/* Stats strip: 4 col → 2 col */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  text-align: center;
+}
+@media (max-width: 639px) {
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .stats-grid .stat-item:nth-child(2) { border-right: none; }
+  .stats-grid .stat-item:nth-child(1),
+  .stats-grid .stat-item:nth-child(2) { border-bottom: 1px solid rgba(45,106,79,0.08); }
+}
+
+/* Slider cards — widths based on visible track, not viewport.
+   On mobile the wrapper has no extra padding so 50% - gap works cleanly. */
+.slider-card { flex-shrink: 0; width: calc(25% - 12px); }
+@media (max-width: 1279px) { .slider-card { width: calc(33.333% - 11px); } }
+@media (max-width: 767px)  { .slider-card { width: calc(50% - 8px); } }
+@media (max-width: 479px)  { .slider-card { width: calc(75% - 8px); } }
+
+/* Category card heights */
+.cat-card-tall   { height: 380px; }
+.cat-card-normal { height: 220px; }
+@media (max-width: 1023px) {
+  .cat-card-tall   { height: 220px; }
+}
+@media (max-width: 639px) {
+  .cat-card-tall   { height: 180px; }
+  .cat-card-normal { height: 160px; }
+}
+
+/* Section padding responsive */
+.home-section { padding: 64px 0; }
+@media (max-width: 767px) { .home-section { padding: 44px 0; } }
+
+/* Why section padding */
+.why-section { padding: 72px 0; }
+@media (max-width: 767px) { .why-section { padding: 52px 0; } }
+
+/* Hero text responsive */
+@media (max-width: 639px) {
+  .hero-buttons { flex-direction: column; }
+  .hero-buttons a { text-align: center; justify-content: center; }
+}
