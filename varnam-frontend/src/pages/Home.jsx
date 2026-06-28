@@ -1160,7 +1160,7 @@ function StatsStrip() {
             { n: '500+', l: 'Happy Customers' },
             { n: '100%', l: 'Organic Certified' },
             { n: '0',    l: 'Harmful Chemicals' },
-            { n: '2â€“5',  l: 'Days Delivery' },
+            { n: '2',  l: 'Days Delivery' },
           ].map(({ n, l }, i) => (
             <div key={i} className="stat-item"
               style={{ padding: '30px 16px', borderRight: i < 3 ? '1px solid rgba(45,106,79,0.08)' : 'none' }}>
