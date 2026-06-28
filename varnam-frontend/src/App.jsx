@@ -49,7 +49,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Toaster
-        position="top-right"
+        position="bottom-center"
         toastOptions={{
           duration: 3500,
           style: {
