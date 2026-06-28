@@ -1,0 +1,1337 @@
+================================================================================
+                      VARNAM NATURALS — API ENDPOINTS MAP
+================================================================================
+  Total Sections  : 12
+  Total Endpoints : 65
+  Auth Strategy   : JWT via HTTP-Only Cookie
+  Base URL (dev)  : http://localhost:5000/api
+  Last Updated    : Added persistent cart (GET/PUT/DELETE /api/cart) with
+                    abandoned-cart reminder cron (24h + 3-day emails via Brevo).
+                    Cart auto-clears after COD order placed and after Razorpay
+                    payment.captured webhook confirms payment.
+================================================================================
+
+
+================================================================================
+ 👤  CUSTOMER AUTH  (/api/auth)
+================================================================================
+
+Method   : POST
+Endpoint : /api/auth/send-register-otp
+Access   : Public (Rate Limited — 10 req / 15 min)
+Payload  : { "email": "arun@email.com" }  (JSON)
+Goal     : Step 1 of the OTP-verified registration flow.
+           Checks if the email is already registered — rejects with 400 if so.
+           Generates a 6-digit OTP, bcrypt-hashes it, and stores it in an
+           in-memory Map (keyed by normalised email) with a 10-minute expiry.
+           Sends the OTP to the given email using the otpTemplate.
+           The in-memory store is intentionally not persisted to the database —
+           it is cleared on server restart, keeping stale entries impossible.
+Returns  : { success: true, message: "OTP sent to your email." }
+Errors   : 400 — email missing
+           400 — email already registered
+
+--------------------------------------------------------------------------------
+
+Method   : POST
+Endpoint : /api/auth/verify-register-otp
+Access   : Public
+Payload  : { "email": "arun@email.com", "otp": "482910" }  (JSON)
+Goal     : Step 2 — verifies the OTP the user received by email.
+           Looks up the pending entry in the in-memory Map.
+           Checks expiry (10 minutes from send time).
+           Uses bcrypt.compare for safe OTP matching.
+           On success: deletes the entry from the Map (one-time use).
+           After successful verification the frontend proceeds to the full
+           registration call (POST /api/auth/register) with the verified email.
+Returns  : { success: true, message: "Email verified." }
+Errors   : 400 — email or OTP missing
+           400 — no OTP found for this email (never sent or already used)
+           400 — OTP expired
+           400 — incorrect OTP
+
+--------------------------------------------------------------------------------
+
+Method   : POST
+Endpoint : /api/auth/register
+Access   : Public (Rate Limited — 10 req / 15 min)
+Payload  : {
+             "name"     : "Arun Kumar",
+             "email"    : "arun@email.com",
+             "password" : "secret123",
+             "phone"    : "9876543210"
+           }  (JSON)
+Goal     : Registers a new customer account. Hashes the password with bcrypt,
+           issues a signed 7-day JWT stored in an HTTP-Only cookie, and returns
+           the user profile (password excluded).
+           NOTE: The OTP verification step (send-register-otp → verify-register-otp)
+           should be completed before calling this endpoint. The registration
+           endpoint itself does not re-check OTP — OTP gate is enforced at the
+           frontend flow level.
+
+--------------------------------------------------------------------------------
+
+Method   : POST
+Endpoint : /api/auth/login
+Access   : Public (Rate Limited — 10 req / 15 min)
+Payload  : { "email": "arun@email.com", "password": "secret123" }  (JSON)
+Goal     : Validates customer credentials. Rejects blocked accounts with 403.
+           On success, issues a fresh 7-day session cookie and returns the user
+           profile. Successful logins do not count toward the rate limit.
+
+--------------------------------------------------------------------------------
+
+Method   : POST
+Endpoint : /api/auth/logout
+Access   : Protected (Customer)
+Payload  : None
+Goal     : Clears the JWT cookie by overwriting it with an expired empty value.
+           Frontend should clear its local auth state after this call.
+
+--------------------------------------------------------------------------------
+
+Method   : GET
+Endpoint : /api/auth/me
+Access   : Protected (Customer)
+Payload  : None  (cookie sent automatically by browser)
+Goal     : Returns the currently authenticated customer's profile. Called on
+           every app load for auto-login. If cookie is missing or expired,
+           returns 401 — frontend should redirect to login.
+
+--------------------------------------------------------------------------------
+
+Method   : POST
+Endpoint : /api/auth/forgot-password
+Access   : Public
+Payload  : { "email": "arun@email.com" }  (JSON)
+Goal     : Step 1 of the password reset flow.
+           Anti-enumeration design: always returns the same generic success
+           response regardless of whether the email exists in the database.
+           This prevents attackers from discovering which emails are registered.
+           If the email IS registered:
+             — Generates a 6-digit OTP
+             — bcrypt-hashes it and stores on the User document
+             — Sets resetOtpExpires = now + 10 minutes
+             — Sets resetOtpUsed = false
+             — Sends OTP email using otpTemplate
+           If the email is NOT registered: silently returns success (no email sent).
+Returns  : { success: true, message: "If that email is registered, an OTP has been sent." }
+           (Identical response for both registered and unregistered emails)
+Errors   : 400 — email missing
+
+--------------------------------------------------------------------------------
+
+Method   : POST
+Endpoint : /api/auth/reset-password
+Access   : Public
+Payload  : {
+             "email"       : "arun@email.com",
+             "otp"         : "482910",
+             "newPassword" : "newSecret456"
+           }  (JSON)
+Goal     : Step 2 — verifies the OTP and sets the new password.
+           Validates all three fields are present.
+           Enforces newPassword minimum length of 6 characters.
+           Looks up the user with resetOtp, resetOtpExpires, resetOtpUsed fields.
+           Guards:
+             — No OTP on record (forgot-password was never called)
+             — OTP already used (resetOtpUsed = true)
+             — OTP expired (resetOtpExpires < now)
+             — Incorrect OTP (bcrypt.compare fails)
+           On success:
+             — Sets user.password = newPassword (pre-save hook hashes it)
+             — Clears resetOtp and resetOtpExpires
+             — Sets resetOtpUsed = true (one-time use guard)
+           The one-time use guard (resetOtpUsed) is reset back to false
+           automatically the next time forgot-password is called for this user.
+Returns  : { success: true, message: "Password reset successfully. You can now sign in." }
+Errors   : 400 — email, otp, or newPassword missing
+           400 — newPassword less than 6 characters
+           400 — invalid or expired OTP (covers all guard conditions above)
+           400 — OTP already used
+
+
+================================================================================
+ 🔐  ADMIN AUTH  (/api/admin)
+================================================================================
+
+Method   : POST
+Endpoint : /api/admin/login
+Access   : Public (Rate Limited — 10 req / 15 min)
+Payload  : { "email": "admin@varnam.com", "password": "adminpass" }  (JSON)
+Goal     : Admin-only login. Validates that the user exists, has role=admin,
+           and is not blocked. Issues a 7-day JWT cookie on success.
+           Rejects customers who attempt to use this endpoint.
+           Successful logins do not count toward the rate limit.
+
+--------------------------------------------------------------------------------
+
+Method   : POST
+Endpoint : /api/admin/logout
+Access   : Protected (Admin)
+Payload  : None
+Goal     : Clears the admin session cookie. Identical mechanism to customer
+           logout but gated by admin middleware.
+
+--------------------------------------------------------------------------------
+
+Method   : GET
+Endpoint : /api/admin/me
+Access   : Protected (Admin)
+Payload  : None
+Goal     : Returns the authenticated admin's profile. Used for admin panel
+           navbar display and session validation on dashboard load.
+
+
+================================================================================
+ 🗂️  CATEGORIES  (/api/categories)
+================================================================================
+
+Method   : GET
+Endpoint : /api/categories
+Access   : Public
+Payload  : None
+Goal     : Returns all active categories. Used for storefront navigation menus
+           and category filter dropdowns on the frontend.
+
+--------------------------------------------------------------------------------
+
+Method   : GET
+Endpoint : /api/categories/:slug
+Access   : Public
+Payload  : None  (slug in URL — e.g. /api/categories/herbal-oils)
+Goal     : Returns a single active category by its slug. Used for SEO-friendly
+           category landing pages on the frontend.
+
+--------------------------------------------------------------------------------
+
+Method   : POST
+Endpoint : /api/categories
+Access   : Protected (Admin)
+Payload  : {
+             "name"  : "Herbal Oils",
+             "image" : "https://res.cloudinary.com/.../category.jpg"
+           }  (JSON)
+Goal     : Creates a new category. Slug is auto-generated from the name using
+           slugify. Rejects duplicate category names.
+
+--------------------------------------------------------------------------------
+
+Method   : PUT
+Endpoint : /api/categories/:id
+Access   : Protected (Admin)
+Payload  : { "name": "...", "image": "...", "active": true }  (JSON, all optional)
+Goal     : Updates category fields. If name changes, slug is regenerated.
+           Supports activating or deactivating a category via the active field.
+
+--------------------------------------------------------------------------------
+
+Method   : DELETE
+Endpoint : /api/categories/:id
+Access   : Protected (Admin)
+Payload  : None
+Goal     : Deletes the category and nullifies the category field on all products
+           that were linked to it, preventing dangling ObjectId references.
+           Products remain in the DB and stay purchasable — they just lose
+           their category association until manually reassigned.
+
+
+================================================================================
+ 📦  PRODUCTS  (/api/products)
+================================================================================
+
+Method   : GET
+Endpoint : /api/products
+Access   : Public
+Payload  : None
+Query    : ?minPrice=100&maxPrice=500&sort=price-low&page=1&limit=12
+           sort options: price-low | price-high | popular | newest (default)
+Goal     : Returns paginated active products with optional price filtering and
+           sorting. Pagination is computed on effectivePrice (discountPrice if
+           set, otherwise price). Response includes pagination metadata.
+Returns  : { pagination: { total, page, pages }, data: [...] }
+
+--------------------------------------------------------------------------------
+
+Method   : GET
+Endpoint : /api/products/best-sellers
+Access   : Public
+Payload  : None
+Goal     : Returns all products where bestSeller=true and active=true.
+           Best seller flag is set manually by admin — not calculated from sales.
+
+--------------------------------------------------------------------------------
+
+Method   : GET
+Endpoint : /api/products/featured
+Access   : Public
+Payload  : None
+Goal     : Returns all products where featured=true and active=true.
+           Used for the homepage featured section on the frontend.
+
+--------------------------------------------------------------------------------
+
+Method   : GET
+Endpoint : /api/products/search
+Access   : Public
+Payload  : None
+Query    : ?q=coconut oil
+Goal     : Full-text search across name, description, and shortDescription using
+           MongoDB text index. Results are ranked by relevance score.
+
+--------------------------------------------------------------------------------
+
+Method   : GET
+Endpoint : /api/products/category/:slug
+Access   : Public
+Payload  : None  (slug in URL — e.g. /api/products/category/herbal-oils)
+Goal     : Returns all active products belonging to a category, looked up by
+           the category's slug. Returns 404 if the category is inactive or missing.
+
+--------------------------------------------------------------------------------
+
+Method   : GET
+Endpoint : /api/products/:slug
+Access   : Public
+Payload  : None  (slug in URL — e.g. /api/products/cold-pressed-coconut-oil)
+Goal     : Returns a single active product by slug with its category populated.
+           Used for the product detail page. Returns 404 if inactive or missing.
+           NOTE: Registered last in router to avoid shadowing literal routes above.
+
+--------------------------------------------------------------------------------
+
+Method   : POST
+Endpoint : /api/products
+Access   : Protected (Admin)
+Payload  : {
+             "name"             : "Cold Pressed Coconut Oil",
+             "description"      : "...",
+             "shortDescription" : "Pure cold pressed coconut oil.",
+             "price"            : 350,
+             "discountPrice"    : 299,
+             "category"         : "<categoryObjectId>",
+             "images"           : ["https://res.cloudinary.com/.../img.jpg"],
+             "stock"            : 100,
+             "ingredients"      : ["Coconut"],
+             "benefits"         : ["Moisturises", "Strengthens hair"]
+           }  (JSON)
+Goal     : Creates a new product. Slug is auto-generated from name.
+           discountPrice is validated at the schema level to be less than price.
+
+--------------------------------------------------------------------------------
+
+Method   : PUT
+Endpoint : /api/products/:id
+Access   : Protected (Admin)
+Payload  : Any subset of product fields  (JSON)
+Goal     : Updates a product by ID. If name is updated, slug is regenerated.
+           Runs schema validators including the discountPrice < price check.
+
+--------------------------------------------------------------------------------
+
+Method   : DELETE
+Endpoint : /api/products/:id
+Access   : Protected (Admin)
+Payload  : None
+Goal     : Soft deletes the product by setting active=false. The product
+           disappears from all public storefront queries immediately.
+           The document is kept in MongoDB so past order records can still
+           populate product images and slug without broken references.
+           Use PATCH /api/products/status/:id to restore if needed.
+
+--------------------------------------------------------------------------------
+
+Method   : PATCH
+Endpoint : /api/products/stock/:id
+Access   : Protected (Admin)
+Payload  : { "stock": 150 }  (JSON)
+Goal     : Directly sets the stock value for a product. Used for manual
+           inventory corrections. Rejects negative values.
+
+--------------------------------------------------------------------------------
+
+Method   : PATCH
+Endpoint : /api/products/best-seller/:id
+Access   : Protected (Admin)
+Payload  : None
+Goal     : Toggles the bestSeller flag on the product (true → false → true).
+           Manual admin decision — not automated from sales data.
+
+--------------------------------------------------------------------------------
+
+Method   : PATCH
+Endpoint : /api/products/featured/:id
+Access   : Protected (Admin)
+Payload  : None
+Goal     : Toggles the featured flag on the product. Controls homepage
+           featured section visibility immediately on toggle.
+
+--------------------------------------------------------------------------------
+
+Method   : PATCH
+Endpoint : /api/products/status/:id
+Access   : Protected (Admin)
+Payload  : None
+Goal     : Toggles the active flag (true → false → true). Use this to
+           re-activate a soft-deleted product without touching any other field.
+
+
+================================================================================
+ 🖼️  UPLOADS  (/api/upload)
+================================================================================
+
+NOTE: All upload endpoints use multipart/form-data — NOT raw JSON.
+      In Postman: Body → form-data → set field type to "File".
+
+Method   : POST
+Endpoint : /api/upload/product
+Access   : Protected (Admin)
+Key Name : image  (single file)
+Goal     : Uploads a product image to Cloudinary under the products/ folder.
+           Returns { url, publicId }. Store the URL in the product's images array
+           and keep publicId to delete later if the image is replaced.
+
+--------------------------------------------------------------------------------
+
+Method   : POST
+Endpoint : /api/upload/category
+Access   : Protected (Admin)
+Key Name : image  (single file)
+Goal     : Uploads a category image to Cloudinary under the categories/ folder.
+           Returns { url, publicId }. Use the URL when creating or updating a
+           category.
+
+--------------------------------------------------------------------------------
+
+Method   : POST
+Endpoint : /api/upload/banner
+Access   : Protected (Admin)
+Key Name : image  (single file)
+Goal     : Uploads a banner image to Cloudinary under the banners/ folder.
+           Returns { url, publicId }. Pass both to POST /api/banners.
+
+--------------------------------------------------------------------------------
+
+Method   : POST
+Endpoint : /api/upload/products/multiple
+Access   : Protected (Admin)
+Key Name : images  (up to 5 files)
+Goal     : Uploads multiple product images in a single request. Returns an array
+           of { url, publicId } objects. Useful for creating a product with a
+           full image gallery in one request.
+
+--------------------------------------------------------------------------------
+
+Method   : DELETE
+Endpoint : /api/upload
+Access   : Protected (Admin)
+Payload  : { "publicId": "products/abc123xyz" }  (JSON)
+Goal     : Permanently deletes an asset from Cloudinary using its publicId.
+           Call this whenever an image is replaced or a product/banner is deleted,
+           to avoid accumulating unused assets in your Cloudinary storage quota.
+
+
+================================================================================
+ 🛒  CART  (/api/cart)
+================================================================================
+
+NOTE: All cart endpoints require authentication (logged-in customer only).
+      The cart is persisted in MongoDB — one document per user.
+      Every mutation on the frontend (add, update quantity, remove) should call
+      PUT /api/cart with the full updated items array.
+      The cart is cleared automatically server-side after a successful order.
+
+Method   : GET
+Endpoint : /api/cart
+Access   : Protected (Customer)
+Payload  : None
+Goal     : Fetches the current user's cart from MongoDB. Call this on login
+           and on page load to hydrate the frontend cart state (Zustand store
+           or localStorage). Returns an empty items array if no cart exists yet.
+Returns  : { success: true, items: [ { product, name, price, image, quantity } ] }
+
+--------------------------------------------------------------------------------
+
+Method   : PUT
+Endpoint : /api/cart
+Access   : Protected (Customer)
+Payload  : {\n             \"items\": [\n               {\n                 \"product\"  : \"<productObjectId>\",\n                 \"name\"     : \"Cold Pressed Coconut Oil\",\n                 \"price\"    : 299,\n                 \"image\"    : \"https://res.cloudinary.com/.../img.jpg\",\n                 \"quantity\" : 2\n               }\n             ]\n           }  (JSON)
+Goal     : Syncs the full cart to MongoDB after any cart mutation — add item,
+           update quantity, or remove item. Pass the entire items array, not
+           just the changed item. An empty array (items: []) clears the cart.
+           Resets the abandoned-cart reminder clock on every call — if the user
+           comes back and changes their cart, the 24h reminder timer restarts.
+           Validates: items must be an array; each item requires product, name,
+           price, quantity; quantity must be >= 1.
+Returns  : { success: true, message: \"Cart synced\", items: [...] }
+Errors   : 400 — items is not an array
+           400 — item missing required fields (product, name, price, quantity)
+           400 — quantity less than 1
+
+--------------------------------------------------------------------------------
+
+Method   : DELETE
+Endpoint : /api/cart
+Access   : Protected (Customer)
+Payload  : None
+Goal     : Clears all items from the user's cart in MongoDB and resets the
+           abandoned-cart reminder state. Call this on manual cart clear.
+           NOTE: The cart is also cleared automatically server-side after:
+             — COD order confirmed (orderController.createOrder)
+             — Razorpay payment.captured webhook fires (paymentController)
+           So the frontend does not need to call this after a successful order —
+           it is already handled. Only call manually for explicit user-triggered
+           cart clears.
+Returns  : { success: true, message: \"Cart cleared\" }
+
+--------------------------------------------------------------------------------
+
+ABANDONED CART REMINDER — BACKGROUND CRON
+  A node-cron job runs every hour (0 * * * *, IST timezone) and checks for
+  carts that have been idle without a completed order.
+
+  Reminder tiers:
+    After 24 hours  — Stage '24h': "You left something in your cart!"
+    After 3 days    — Stage '3d' : "Complete your purchase before it's gone!"
+
+  Safety checks applied per cart before sending any email:
+    1. Cart must be non-empty (items.length > 0)
+    2. User must not be blocked or deleted
+    3. User must NOT have placed an order after cart.updatedAt
+       (prevents emailing customers who already bought)
+    4. Reminder stage only advances — the same email is never sent twice
+    5. Any cart activity (PUT /api/cart) resets reminderStage → null,
+       restarting the 24h clock from the latest update
+
+  No new endpoints are exposed for the cron — it runs fully in the background.
+  Registered in server.js via startAbandonedCartCron() called after DB connects.
+
+
+================================================================================
+ 🛒  ORDERS  (/api/orders)
+================================================================================
+
+Method   : POST
+Endpoint : /api/orders
+Access   : Public / Optional Auth (guest or logged-in customer)
+Payload (COD):
+           {
+             "customerName"    : "Arun Kumar",
+             "customerEmail"   : "arun@email.com",
+             "customerPhone"   : "9876543210",
+             "shippingAddress" : {
+               "street"     : "12 Anna Nagar",
+               "city"       : "Coimbatore",
+               "state"      : "Tamil Nadu",
+               "postalCode" : "641001"
+             },
+             "paymentMethod" : "COD",
+             "orderItems"    : [
+               { "product": "<productObjectId>", "quantity": 2 }
+             ]
+           }  (JSON)
+
+Payload (RAZORPAY — poll after webhook):
+           { "paymentMethod": "RAZORPAY", "razorpayOrderId": "order_xxx" }
+
+Goal     : COD path — validates payload, checks stock, deducts stock atomically
+           inside a MongoDB transaction, saves the order, fires confirmation
+           emails to customer and admin.
+           After a successful COD order, the user's DB cart is cleared
+           automatically (Cart.clearCart) — frontend does not need to call
+           DELETE /api/cart separately.
+           Shipping fee is computed server-side from Settings:
+             subtotal >= freeShippingThreshold → free
+             subtotal <  freeShippingThreshold → flatShippingFee
+           COD is rejected if codEnabled=false or finalTotal > codLimit.
+           RAZORPAY path — polls the DB for the order confirmed by the webhook.
+           Returns current payment status (Pending / Paid / Failed).
+Emails   : ✉ Confirmation to customer
+           ✉ New order alert to admin
+Errors   : 400 — missing fields, invalid email/phone, incomplete address
+           400 — COD disabled or COD limit exceeded
+           400 — insufficient stock or product not found
+           400 — invalid quantity
+
+--------------------------------------------------------------------------------
+
+Method   : GET
+Endpoint : /api/orders/my-orders
+Access   : Protected (Customer)
+Payload  : None
+Query    : ?page=1&limit=10  (default 10 per page, max 50)
+Goal     : Returns paginated order history for the logged-in customer,
+           sorted newest first. Guest orders are not retrievable here.
+Returns  : { pagination: { total, page, pages }, data: [...] }
+
+--------------------------------------------------------------------------------
+
+Method   : GET
+Endpoint : /api/orders/track/:orderNumber
+Access   : Public (Rate Limited — 20 req / min)
+Payload  : None  (e.g. /api/orders/track/ORD-20260530-A1B2C3D4)
+Goal     : Minimal public tracking. Returns only orderNumber, orderStatus,
+           paymentMethod, and createdAt. Zero PII exposed.
+           Rate limited to prevent brute-force enumeration of order numbers.
+
+--------------------------------------------------------------------------------
+
+Method   : POST
+Endpoint : /api/orders/:id/cancel-request
+Access   : Protected (Customer)
+Payload  : { "reason": "Ordered by mistake" }  (JSON)
+Goal     : Customer submits a cancellation request for their own order.
+           Reason is required, max 500 characters.
+           Allowed only when orderStatus is 'Ordered' or 'Packed'.
+           One active request per order — re-submission blocked if Pending
+           or Approved. A Rejected request can be re-submitted.
+           Admin receives an email alert immediately on submission.
+Errors   : 400 — reason missing or over 500 characters
+           400 — order status is not Ordered or Packed
+           400 — request already Pending or Approved
+           403 — order does not belong to this customer
+           404 — order not found
+
+--------------------------------------------------------------------------------
+
+Method   : GET
+Endpoint : /api/orders/:id/cancel-request
+Access   : Protected (Customer)
+Payload  : None
+Goal     : Returns the current status of the cancellation request on this order.
+           Used for frontend polling so the customer can see if their request
+           is Pending, Approved, or Rejected, and read any admin rejection note.
+Returns  : {
+             orderNumber         : "ORD-20260530-A1B2C3D4"
+             orderStatus         : current lifecycle status
+             cancellationRequest : {
+               requestedAt : timestamp
+               reason      : customer's stated reason
+               status      : "Pending" | "Approved" | "Rejected"
+               adminNote   : rejection note from admin (null if pending/approved)
+               resolvedAt  : when admin actioned it (null if still pending)
+             }
+           }
+Errors   : 403 — order does not belong to this customer
+           404 — order not found or no cancellation request exists
+
+--------------------------------------------------------------------------------
+
+Method   : GET
+Endpoint : /api/orders/:id
+Access   : Optional Auth
+Payload  : None  (MongoDB ObjectId in URL)
+Goal     : Returns full order detail by ID. If the order has a user attached,
+           only that user or an admin can view it. Guest orders (user: null)
+           are accessible without authentication.
+           NOTE: Registered last in orderRoutes to prevent Express matching
+           literal sub-paths (cancel-request, track) as the :id param.
+
+--------------------------------------------------------------------------------
+
+Method   : GET
+Endpoint : /api/orders
+Access   : Protected (Admin)
+Payload  : None
+Query    : ?page=1&limit=20  (default 20, max 100)
+Goal     : Returns paginated orders sorted newest first, with the user field
+           populated (name, email). Includes all order statuses including drafts.
+Returns  : { pagination: { total, page, pages }, data: [...] }
+
+--------------------------------------------------------------------------------
+
+Method   : GET
+Endpoint : /api/orders/user/:userId
+Access   : Protected (Admin)
+Payload  : None  (MongoDB customer _id in URL)
+Query    : ?page=1&limit=20  (default 20, max 100)
+Goal     : Returns paginated order history for a specific customer. Used in
+           the admin customer detail view.
+Returns  : { pagination: { total, page, pages }, data: [...] }
+
+--------------------------------------------------------------------------------
+
+Method   : GET
+Endpoint : /api/orders/status/:status
+Access   : Protected (Admin)
+Payload  : None  (status in URL)
+Query    : ?page=1&limit=20  (default 20, max 100)
+           Valid values: Pending Payment | Pending Manual Review | Ordered |
+                         Packed | Shipped | Out For Delivery | Delivered | Cancelled
+Goal     : Filters all orders by a specific status with pagination.
+           Used for admin order management boards.
+Returns  : { pagination: { total, page, pages }, data: [...] }
+
+--------------------------------------------------------------------------------
+
+Method   : PUT
+Endpoint : /api/orders/status/:id
+Access   : Protected (Admin)
+Payload  : { "orderStatus": "Packed" }  (JSON)
+Goal     : Advances the order through its lifecycle. Enforces strict transition
+           rules — invalid jumps are rejected with 400.
+           Valid transitions:
+             Pending Payment   → Ordered, Cancelled
+             Ordered           → Packed, Cancelled
+             Packed            → Shipped, Cancelled
+             Shipped           → Out For Delivery
+             Out For Delivery  → Delivered
+             Delivered         → (no further transitions)
+             Cancelled         → (no further transitions)
+           On → Shipped  : ✉ shipping email sent to customer automatically
+           On → Delivered: ✉ delivery email sent, isPaid=true, deliveredAt set
+                           For COD: paymentStatus is set to 'Paid' at this point
+
+--------------------------------------------------------------------------------
+
+Method   : PUT
+Endpoint : /api/orders/cancel/:id
+Access   : Protected (Admin)
+Payload  : None                          (normal cancel)
+           { "skipRefund": true }        (escape hatch — see below)
+Goal     : Admin directly cancels an order. Restores stock and initiates
+           refund atomically inside a MongoDB transaction.
+           Stock restore: only for COD orders or paid Razorpay orders.
+             Razorpay 'Pending Payment' drafts never had stock deducted — skipped.
+           Razorpay refund: if order.paymentStatus was 'Paid', calls the Razorpay
+             refund API automatically. If Razorpay rejects the refund, the entire
+             transaction aborts — order stays unchanged, admin gets a clear error.
+           skipRefund escape hatch:
+             If admin already issued the refund manually via the Razorpay dashboard
+             before cancelling in your system, the refund API returns "already refunded"
+             and the cancel fails. Pass { "skipRefund": true } to bypass the API call.
+             Backend skips the Razorpay call, logs the skip, and marks paymentStatus
+             as 'Refunded' directly — assuming the money was already returned.
+             Only admins can reach this endpoint so this flag cannot be abused.
+           paymentStatus after cancel:
+             Was 'Paid' → 'Refunded'   (Razorpay refund was initiated or skipped)
+             Was anything else → 'Cancelled'  (no money was collected)
+           Cancellable from: Pending Payment, Pending Manual Review, Ordered, Packed
+           Cannot cancel: Shipped, Out For Delivery, Delivered
+           ✉ Cancellation email sent to customer after commit.
+             COD variant    → "No payment was collected"
+             Refund variant → "Refund initiated" with expected refund timelines
+
+
+================================================================================
+ 💳  PAYMENTS  (/api/payment)
+================================================================================
+
+Method   : POST
+Endpoint : /api/payment/create-order
+Access   : Public / Optional Auth (Rate Limited — 10 req / 15 min)
+Payload  : {
+             "customerName"    : "Arun Kumar",
+             "customerEmail"   : "arun@email.com",
+             "customerPhone"   : "9876543210",
+             "shippingAddress" : {
+               "street"     : "12 Anna Nagar",
+               "city"       : "Coimbatore",
+               "state"      : "Tamil Nadu",
+               "postalCode" : "641001"
+             },
+             "orderItems" : [
+               { "product": "<productObjectId>", "quantity": 2 }
+             ]
+           }  (JSON)
+Goal     : Step 1 of the Razorpay checkout flow.
+           Applies same structural validation as COD (email, phone, address).
+           Validates cart: every product must exist, be active, and have stock.
+           Computes server-side total using Settings (freeShippingThreshold +
+           flatShippingFee) — frontend-supplied shippingFee is always ignored.
+           Idempotency: if the same logged-in user has an active draft with the
+           same cart items within 30 minutes, the existing Razorpay order is
+           reused. Cart comparison checks product IDs + quantities.
+           If cart changed → fresh Razorpay order created.
+           Saves a pending draft order in MongoDB with 24-hour TTL for
+           auto-cleanup if payment is never completed.
+           Returns the Razorpay order object — pass to the Razorpay JS SDK
+           to open the payment popup.
+Returns  : Razorpay order object with id, amount, currency
+
+--------------------------------------------------------------------------------
+
+Method   : POST
+Endpoint : /api/payment/webhook
+Access   : Razorpay Server Only (HMAC-SHA256 signature verified)
+Payload  : Raw JSON body sent automatically by Razorpay
+           DO NOT call this from the frontend or Postman directly.
+Goal     : Step 2 — the definitive source of truth for all payment outcomes.
+           First verifies HMAC signature using RAZORPAY_WEBHOOK_SECRET.
+           Uses timingSafeEqual for signature comparison (prevents timing attacks).
+           Ignores any event not in the allowed list.
+
+           On payment.captured:
+             1. Duplicate check — if already Paid, returns 200 immediately
+             2. Atomically checks AND deducts stock for each item in one
+                updateOne operation (no race window between check and write)
+             3. If any item's stock ran out:
+                  → Rolls back all partial deductions within the transaction
+                  → Routes to 'Pending Manual Review'
+                  → Admin must resolve manually (refund or fulfill from restock)
+             4. If all stock available:
+                  → orderStatus → 'Ordered'
+                  → paymentStatus → 'Paid'
+                  → isPaid=true, paidAt=now, razorpayPaymentId saved
+                  → expiresAt cleared (no longer auto-deletes)
+                  → User's DB cart cleared automatically (Cart.clearCart)
+                  → ✉ Confirmation emails to customer and admin
+
+           On payment.failed:
+             1. Duplicate check — if already Failed, returns 200 immediately
+             2. orderStatus → 'Cancelled'
+             3. paymentStatus → 'Failed'
+             4. failureReason saved (bank rejection message, hidden from public)
+             5. Stock is NOT touched (was never deducted)
+
+           On refund.processed:
+             Fired by Razorpay when a refund actually completes — money has moved.
+             Separate from when refund was initiated (that happens at cancel time).
+             1. Finds order by razorpayPaymentId (the original payment ID)
+             2. Idempotency check — if refundedAt already set, skips silently
+             3. Sets refundedAt = now (confirms refund landed)
+             4. ✉ Sends "Refund Completed" email to customer
+             Note: This webhook fires for both admin-cancelled orders and
+             cancel-request-approved orders — any path that called the refund API.
+
+           All events are fully idempotent — Razorpay retry attempts are
+           safely detected and ignored without side effects.
+
+           Webhook URL to set in Razorpay dashboard:
+             https://your-domain.com/api/payment/webhook
+           Events to enable: payment.captured, payment.failed, refund.processed
+
+           IMPORTANT: Must receive raw body. Registered in server.js BEFORE
+           express.json() middleware using express.raw({ type: 'application/json' }).
+
+
+================================================================================
+ 🏠  BANNERS  (/api/banners)
+================================================================================
+
+Method   : GET
+Endpoint : /api/banners
+Access   : Public
+Payload  : None
+Goal     : Returns all active banners sorted by order field ascending, then
+           newest first. Used for the storefront homepage hero/slider.
+
+--------------------------------------------------------------------------------
+
+Method   : GET
+Endpoint : /api/banners/all
+Access   : Protected (Admin)
+Payload  : None
+Goal     : Returns ALL banners including inactive ones. Used in admin panel
+           banner management table.
+
+--------------------------------------------------------------------------------
+
+Method   : POST
+Endpoint : /api/banners
+Access   : Protected (Admin)
+Payload  : {
+             "title"      : "Summer Sale",
+             "subtitle"   : "Up to 30% off on all oils",
+             "image"      : "https://res.cloudinary.com/.../banner.jpg",
+             "publicId"   : "varnam-organic/banners/banner_xyz",
+             "buttonText" : "Shop Now",
+             "buttonLink" : "/products",
+             "order"      : 1
+           }  (JSON)
+Goal     : Creates a new banner. Upload image first via POST /api/upload/banner
+           to get the image URL and publicId, then pass both here.
+           order field controls display sequence — lower number shown first.
+           active defaults to true on creation.
+
+--------------------------------------------------------------------------------
+
+Method   : PUT
+Endpoint : /api/banners/:id
+Access   : Protected (Admin)
+Payload  : Any subset of banner fields  (JSON, all optional)
+Goal     : Updates banner content. Partial update — fields not in the payload
+           are not overwritten.
+
+--------------------------------------------------------------------------------
+
+Method   : DELETE
+Endpoint : /api/banners/:id
+Access   : Protected (Admin)
+Payload  : None
+Goal     : Permanently deletes the banner record from the database.
+           Does NOT delete the image from Cloudinary automatically.
+           Call DELETE /api/upload with the banner's publicId separately to
+           free up Cloudinary storage.
+
+--------------------------------------------------------------------------------
+
+Method   : PATCH
+Endpoint : /api/banners/status/:id
+Access   : Protected (Admin)
+Payload  : None
+Goal     : Toggles banner active status (true → false → true). Deactivated
+           banners are hidden from the storefront immediately.
+
+
+================================================================================
+ 📊  ADMIN DASHBOARD  (/api/admin)
+================================================================================
+
+Method   : GET
+Endpoint : /api/admin/dashboard
+Access   : Protected (Admin)
+Payload  : None
+Goal     : Single-call admin home screen. Returns everything needed in one shot.
+Returns  : {
+             stats: {
+               totalOrders           → confirmed orders (excludes Pending Payment drafts)
+               totalSales            → revenue from Paid/Pending orders (Refunded excluded)
+               totalCustomers        → total registered customer accounts
+               todayRevenue          → revenue generated today (Refunded excluded)
+               todayOrders           → orders placed today
+               pendingCancelRequests → count of unresolved cancellation requests
+                                       (use as alert badge on dashboard header)
+             },
+             ordersByStatus   : { "Ordered": 12, "Packed": 4, "Shipped": 7, ... }
+             recentOrders     : last 10 orders (minimal fields for dashboard table)
+             lowStockProducts : products with stock ≤ 10, sorted lowest stock first
+           }
+
+--------------------------------------------------------------------------------
+
+Method   : GET
+Endpoint : /api/admin/sales
+Access   : Protected (Admin)
+Payload  : None
+Query    : ?days=30  (min 7, max 365, default 30)
+Goal     : Sales analytics for chart rendering in the admin panel.
+           Refunded orders are excluded from all revenue figures.
+Returns  : {
+             dailySales        → revenue + order count per day for requested window
+             topProducts       → top 5 products by total revenue (all time)
+             paymentMethodSplit → COD vs Razorpay breakdown (count + revenue each)
+             monthlySales      → revenue + order count per month for last 6 months
+           }
+Example  : GET /api/admin/sales?days=7    (last week)
+           GET /api/admin/sales?days=90   (last quarter)
+
+--------------------------------------------------------------------------------
+
+Method   : GET
+Endpoint : /api/admin/low-stock
+Access   : Protected (Admin)
+Payload  : None
+Query    : ?threshold=10  (default 10)
+Goal     : Returns active products at or below the stock threshold, sorted
+           lowest stock first. Use for restocking alerts.
+           Returns threshold, count, and product list with name, stock,
+           price, images, and category populated.
+Example  : GET /api/admin/low-stock              (threshold = 10)
+           GET /api/admin/low-stock?threshold=5  (critical only)
+
+--------------------------------------------------------------------------------
+
+Method   : GET
+Endpoint : /api/admin/reports/orders
+Access   : Protected (Admin)
+Query    : ?period=all     → every order ever placed  (default)
+           ?period=month   → 1st of current month 00:00 IST → now
+           ?period=week    → last Monday 00:00 IST → now
+           ?period=today   → today 00:00 IST → now
+Payload  : None — no request body needed
+Goal     : Generates a branded Excel workbook (.xlsx) containing 5 sheets
+           of order data and emails it to ADMIN_EMAIL as an attachment.
+           All timestamps are in IST. Orders with status 'Pending Payment'
+           are excluded (draft orders only — never confirmed).
+
+           Sheet 1 — All Orders
+             Full record for every order in the period. Rows are grouped and
+             separated by month. 29 columns covering: order number, dates,
+             customer info (name/email/phone), whether the buyer is a registered
+             user or guest, full shipping address, items summary, subtotal,
+             shipping fee, total, payment method, payment status, Razorpay IDs,
+             order status, delivery date, cancellation request details.
+             Cells are colour-coded: green = Paid/Delivered, amber = Shipped/Refunded,
+             red = Failed/Cancelled. Rows alternate white/light-green for readability.
+
+           Sheet 2 — Monthly Summary
+             One row per calendar month. 12 columns: month, total orders, revenue,
+             average order value, delivered count, cancelled count, COD orders,
+             online (Razorpay) orders, refunded orders, cancel request count,
+             unique registered customers, guest order count.
+             Totals row at the bottom in dark green.
+
+           Sheet 3 — Payment Detail
+             Focused financial view. Every order with: order number, date, customer,
+             payment method, payment status (colour-coded), subtotal, shipping, total,
+             paid-at timestamp, Razorpay order ID, Razorpay payment ID, refunded-at,
+             order status. Auto-filter enabled.
+
+           Sheet 4 — Cancellations
+             Filtered to orders that were cancelled or had a cancellation request.
+             Includes: order info, order status, payment info, total, cancel-requested-at,
+             cancel reason (full text), cancel status (colour-coded: green/amber/red),
+             admin note, resolved-at, refunded-at.
+
+           Sheet 5 — Deliveries
+             Filtered to delivered orders only. Includes: order info, delivered-at,
+             days-to-deliver (highlighted green if ≤ 3 days), customer info,
+             city, state, payment method, total, items summary.
+
+Returns  : On success (orders found):
+             {
+               success: true,
+               message: "Report generated (N orders, 5 sheets) and sent to admin@email.com.",
+               meta: {
+                 period, periodLabel, totalOrders, totalRevenue,
+                 filename, sentTo, generatedAt, from?, to?
+               }
+             }
+           On no data:
+             { success: true, message: "No orders found for period: ... Report not generated." }
+Errors   : 500 — Excel generation or email send failure
+Notes    : Requires ExcelJS (npm package) and a configured ADMIN_EMAIL env var.
+           All date boundaries are computed in IST (UTC+5:30) regardless of
+           the server's system timezone. The 'all' period has no date filter —
+           it includes the entire orders collection.
+
+--------------------------------------------------------------------------------
+
+Method   : GET
+Endpoint : /api/admin/customers
+Access   : Protected (Admin)
+Payload  : None
+Query    : ?page=1&limit=20  (default 20, max 100)
+Goal     : Paginated customer list enriched with order stats per customer:
+           orderCount (confirmed orders only), totalSpend (Refunded orders
+           excluded), lastOrderAt (most recent order timestamp).
+Returns  : { pagination: { total, page, pages }, data: [...] }
+
+--------------------------------------------------------------------------------
+
+Method   : GET
+Endpoint : /api/admin/customers/:id
+Access   : Protected (Admin)
+Payload  : None  (MongoDB customer _id in URL)
+Query    : ?page=1&limit=20  (default 20, max 100)
+Goal     : Full customer profile with paginated order history and lifetime stats.
+           Lifetime stats (orderCount, totalSpend) are computed across ALL orders
+           regardless of which page is requested — always accurate totals.
+Returns  : {
+             customer   : user document (password excluded)
+             orders     : paginated order history sorted newest first
+             pagination : { total, page, pages }
+             stats      : {
+               orderCount : total confirmed orders (all time)
+               totalSpend : lifetime spend (Refunded orders excluded)
+             }
+           }
+
+--------------------------------------------------------------------------------
+
+Method   : PATCH
+Endpoint : /api/admin/customers/block/:id
+Access   : Protected (Admin)
+Payload  : None
+Goal     : Toggles customer block status (active ↔ blocked). Blocked customers
+           receive 403 on all authenticated requests — enforced in both
+           authMiddleware and optionalAuthMiddleware. Does not delete account
+           or order history. Block also prevents placing new orders.
+           NOTE: /customers/block/:id registered before /customers/:id in
+           the router to prevent Express matching "block" as the :id param.
+
+
+================================================================================
+ ❌  CANCELLATION REQUESTS  (/api/admin/cancel-requests)
+================================================================================
+
+Method   : GET
+Endpoint : /api/admin/cancel-requests
+Access   : Protected (Admin)
+Payload  : None
+Query    : ?status=Pending   (default — unresolved requests)
+           ?status=Approved
+           ?status=Rejected
+           ?status=all       (every order that ever had a request)
+           ?page=1&limit=20  (default 20, max 100)
+Goal     : Lists all cancellation requests filtered by status. Defaults to
+           Pending so admin sees only unresolved requests on first load.
+           Each record includes the full cancellationRequest sub-object plus
+           key order fields: orderNumber, customerName, customerEmail,
+           customerPhone, orderStatus, paymentMethod, totalPrice.
+           user field is populated with name, email, and phone.
+Returns  : {
+             pagination : { total, page, pages }
+             data       : [
+               {
+                 orderNumber, customerName, customerEmail, customerPhone,
+                 orderStatus, paymentMethod, totalPrice,
+                 cancellationRequest : {
+                   requestedAt, reason, status, adminNote, resolvedAt
+                 },
+                 user : { name, email, phone }
+               }, ...
+             ]
+           }
+
+--------------------------------------------------------------------------------
+
+Method   : PUT
+Endpoint : /api/admin/cancel-requests/:id/approve
+Access   : Protected (Admin)
+Payload  : None  (:id is the Order._id — requests are embedded in the order)
+Goal     : Approves a pending cancellation request and runs full cancel logic
+           in a single atomic operation:
+             1. Re-validates order can still be cancelled (guards against the
+                order advancing to Shipped between request and approval)
+             2. Restores stock atomically inside a MongoDB transaction
+             3. Calls Razorpay refund API if order was paid online
+             4. orderStatus → 'Cancelled'
+             5. paymentStatus → 'Refunded' (if was Paid) or 'Cancelled'
+             6. cancellationRequest.status → 'Approved', resolvedAt set
+             7. ✉ Resolution email sent to customer (approved variant)
+Errors   : 400 — request is not Pending
+           400 — order has advanced past Packed (too late to cancel)
+           404 — order not found or no request exists
+
+--------------------------------------------------------------------------------
+
+Method   : PUT
+Endpoint : /api/admin/cancel-requests/:id/reject
+Access   : Protected (Admin)
+Payload  : { "adminNote": "Order is already being packed" }  (JSON, optional)
+           (:id is the Order._id)
+Goal     : Rejects the pending request. Order continues normal fulfillment.
+             1. cancellationRequest.status → 'Rejected', resolvedAt set
+             2. adminNote saved (visible to customer via GET cancel-request)
+             3. ✉ Resolution email to customer (rejected variant with admin note)
+           Customer may re-submit a new request after rejection.
+Errors   : 400 — request is not Pending
+           404 — order not found or no request exists
+
+
+================================================================================
+ ⚙️  SETTINGS  (/api/settings)
+================================================================================
+
+Method   : GET
+Endpoint : /api/settings
+Access   : Public
+Payload  : None
+Goal     : Returns the four storefront-safe fields the checkout UI needs to
+           render correctly — shipping fee, free shipping threshold, COD limit,
+           and COD availability. Auto-created with defaults on first boot.
+           No sensitive store info (email, phone, name) is exposed here.
+Returns  : {
+             freeShippingThreshold : 499,
+             flatShippingFee       : 60,
+             codLimit              : 2000,
+             codEnabled            : true
+           }
+
+--------------------------------------------------------------------------------
+
+Method   : GET
+Endpoint : /api/settings/admin
+Access   : Protected (Admin)
+Payload  : None
+Goal     : Returns the full settings document including store name, contact
+           email, phone, and timestamps. Used by the admin panel settings page
+           to pre-fill the edit form before updating.
+
+--------------------------------------------------------------------------------
+
+Method   : PUT
+Endpoint : /api/settings
+Access   : Protected (Admin)
+Payload  : Any subset of the fields below — all optional  (JSON)
+           {
+             "freeShippingThreshold" : 499,
+             "flatShippingFee"       : 60,
+             "codLimit"              : 2000,
+             "codEnabled"            : true,
+             "storeName"             : "Varnam Organic",
+             "storeEmail"            : "hello@varnamorganic.com",
+             "storePhone"            : "9876543210"
+           }
+Goal     : Updates one or more store config values live without a code deploy.
+           Only fields present in the payload are updated — omitted fields stay.
+           Validates flatShippingFee must not exceed freeShippingThreshold.
+           Numeric values validated to be non-negative.
+           codEnabled: false → all new COD orders are blocked immediately.
+           Order controllers read from this document on every request.
+
+--------------------------------------------------------------------------------
+
+ SETTINGS FIELD REFERENCE
+--------------------------------------------------------------------------------
+
+  freeShippingThreshold  Orders at or above this subtotal get free shipping.
+                         Default: ₹499
+
+  flatShippingFee        Flat fee charged on orders below the threshold.
+                         Always computed server-side — frontend value ignored.
+                         Default: ₹60
+                         Must be ≤ freeShippingThreshold (validated on update)
+
+  codLimit               Maximum allowed order total for Cash on Delivery.
+                         Compared against finalTotal (subtotal + shipping fee).
+                         Default: ₹2000
+
+  codEnabled             Master switch for COD across the entire store.
+                         false → all new COD orders are instantly rejected.
+                         Default: true
+
+  storeName              Display name used in email templates and admin panel.
+  storeEmail             Store contact email shown in email footers.
+  storePhone             Store contact phone shown in admin panel.
+
+
+================================================================================
+ 📧  EMAIL NOTIFICATION REFERENCE
+================================================================================
+
+  Trigger                                  Customer  Admin
+  ─────────────────────────────────────────────────────────────────────────────
+  Registration OTP sent                    ✅        ✗
+  Password reset OTP sent                  ✅        ✗
+  Abandoned cart — 24 hours idle           ✅        ✗  ("You left items in your cart!")
+  Abandoned cart — 3 days idle             ✅        ✗  ("Complete before they're gone!")
+  COD order placed                         ✅        ✅ (new order alert)
+  Razorpay payment captured                ✅        ✅ (new order alert)
+  Razorpay payment captured — stock        ✅        ✅ (new order alert)
+    conflict → Pending Manual Review                 ✅ (URGENT stock conflict alert —
+                                                        separate red-banner email,
+                                                        distinct from the order alert.
+                                                        Admin must act within 24hrs.)
+  Order status → Shipped                   ✅        ✗
+  Order status → Delivered                 ✅        ✗
+  Order cancelled (no refund)              ✅        ✗
+  Order cancelled (refund initiated)       ✅        ✗  (refund timeline included)
+  Refund completed (webhook)               ✅        ✗  (refund.processed — confirms money moved)
+  Customer cancel request submitted        ✗         ✅ (request alert)
+  Cancel request approved                  ✅        ✗
+  Cancel request rejected                  ✅        ✗  (admin note included if set)
+  Order report generated                   ✗         ✅ (Excel attachment, 5 sheets)
+
+
+================================================================================
+ 📋  QUICK REFERENCE
+================================================================================
+
+Cookie behaviour
+  Development : httpOnly=true, secure=false, sameSite=Lax
+  Production  : httpOnly=true, secure=true,  sameSite=None
+  Expiry      : 7 days from issue
+
+Rate limits
+  Global API        : 100 req / 15 min  (all /api/* routes)
+  Auth endpoints    : 10 req / 15 min   (/api/auth/login, /api/auth/register,
+                                         /api/admin/login)
+                      Successful requests do not count toward the limit
+  Payment creation  : 10 req / 15 min   (/api/payment/create-order)
+  Order tracking    : 20 req / min      (/api/orders/track/*)
+
+OTP behaviour
+  Registration OTP  : Stored in-memory Map (process memory, not DB)
+                      Expires in 10 minutes
+                      One-time use — deleted immediately after successful verify
+                      Server restart clears all pending verifications
+  Password reset OTP: Stored on User document (hashed with bcrypt)
+                      Expires in 10 minutes (resetOtpExpires field)
+                      One-time use — resetOtpUsed = true after use
+                      New forgot-password call resets the used flag
+
+Pagination — all paginated responses include { pagination: { total, page, pages } }
+  GET /api/products                  → ?page=1&limit=12  (default 12)
+  GET /api/orders                    → ?page=1&limit=20  (default 20, max 100)
+  GET /api/orders/my-orders          → ?page=1&limit=10  (default 10, max 50)
+  GET /api/orders/user/:userId       → ?page=1&limit=20  (default 20, max 100)
+  GET /api/orders/status/:status     → ?page=1&limit=20  (default 20, max 100)
+  GET /api/admin/customers           → ?page=1&limit=20  (default 20, max 100)
+  GET /api/admin/customers/:id       → ?page=1&limit=20  (default 20, max 100) — orders only
+  GET /api/admin/cancel-requests     → ?page=1&limit=20  (default 20, max 100)
+
+Cart model — key fields
+  items          → array of { product, name, price, image, quantity }
+  reminderStage  → null | '24h' | '3d' — tracks which reminder was last sent
+  reminderSentAt → timestamp of last reminder email
+  updatedAt      → Mongoose auto-timestamp; drives the abandoned-cart cron clock
+                   Reset on every PUT /api/cart call (clock restarts on activity)
+
+Cart sync behaviour
+  One document per user (unique index on user field)
+  PUT /api/cart always sends the full items array — not a diff/patch
+  Cart is cleared (items: [], stage reset) after:
+    — PUT /api/cart with items: []   (manual clear)
+    — DELETE /api/cart               (explicit clear)
+    — COD order confirmed            (auto, orderController)
+    — Razorpay payment.captured      (auto, paymentController webhook)
+
+Abandoned cart cron
+  Schedule  : 0 * * * *  (every hour, IST timezone)
+  Stage '24h': fires when updatedAt <= now − 24h and reminderStage is null
+  Stage '3d' : fires when updatedAt <= now − 3d  and reminderStage is '24h'
+  Guards    : non-empty cart, user not blocked, no order placed after updatedAt
+
+Order model — key timestamps
+  paidAt      → set when paymentStatus becomes 'Paid' (webhook capture or COD delivered)
+  deliveredAt → set when orderStatus becomes 'Delivered'
+  refundedAt  → set when Razorpay fires refund.processed (confirms refund completed)
+                null until confirmed — different from paymentStatus 'Refunded' which
+                is set at cancel time when refund is merely initiated, not yet complete
+
+Order status lifecycle
+  Pending Payment → Ordered → Packed → Shipped → Out For Delivery → Delivered
+  Pending Payment → Cancelled  (payment failed or admin cancelled)
+  Ordered / Packed → Cancelled  (admin direct cancel or approved cancel request)
+  Pending Manual Review → Ordered | Cancelled  (stock exception — admin resolves)
+  Shipped and beyond: cannot be cancelled through any system path
+
+Shipping fee logic  (server-enforced, reads from Settings on every request)
+  subtotal >= freeShippingThreshold → shippingFee = 0
+  subtotal <  freeShippingThreshold → shippingFee = flatShippingFee
+  Frontend-supplied shippingFee value is always ignored
+
+COD rules  (reads from Settings on every request)
+  codEnabled = false        → COD order rejected immediately
+  finalTotal > codLimit     → COD order rejected  (finalTotal = subtotal + shipping)
+
+Revenue calculations (admin dashboard + customer stats)
+  Refunded orders are excluded from all revenue and spend totals
+  'Pending' paymentStatus covers COD orders in transit (not yet marked Paid)
+
+Soft delete
+  Products  : DELETE /api/products/:id sets active=false
+  Restore   : PATCH /api/products/status/:id toggles active back to true
+  Reason    : Keeps document in DB so past order records never break
+
+Razorpay webhook raw body
+  app.use('/api/payment/webhook', express.raw({ type: 'application/json' }))
+  Registered in server.js BEFORE express.json() — required for HMAC verification
+
+Trust proxy
+  app.set('trust proxy', 1) in server.js — required for Railway/Render deployment
+  so rate limiters read the real client IP instead of the load balancer's IP
+
+Cancellation request rules
+  Allowed statuses   : Ordered, Packed only (before shipment)
+  Block conditions   : Pending or Approved request already exists
+  Re-submission      : Allowed after Rejection only
+  Embedded in Order  : cancellationRequest is a sub-document on the Order model
+  Admin approval     : Re-validates order status before proceeding — if order
+                       advanced to Shipped between request and approval, cancel
+                       is blocked and admin gets a clear error
+
+Report generation notes
+  Library   : ExcelJS
+  Env var   : ADMIN_EMAIL must be set — report is emailed, not downloaded
+  Periods   : all | month | week | today  (IST-aware boundaries)
+  Exclusion : Orders with status 'Pending Payment' are always excluded
+  Sheets    : All Orders · Monthly Summary · Payment Detail · Cancellations · Deliveries
+  Colors    : Varnam brand palette — dark green header, alternating rows, status highlights
+
+================================================================================
+                               END OF ENDPOINT MAP
+================================================================================
